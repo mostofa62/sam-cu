@@ -1,0 +1,110 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+    <div class="px-6 py-5 border-b border-slate-200 flex items-center justify-between">
+        <div>
+            <h3 class="font-bold text-slate-800">Active Seat Assignments</h3>
+            <p class="text-sm text-slate-500">{{ assignments|length }} active assignment(s)</p>
+        </div>
+        <a href="{% url 'allocations:assign' %}" class="px-4 py-2.5 rounded-lg bg-indigo-600 text-white text-sm font-bold hover:bg-indigo-700 transition">+ Assign New</a>
+    </div>
+
+    <div class="overflow-x-auto">
+        <table class="w-full text-sm">
+            <thead>
+                <tr class="bg-slate-50 text-slate-500 uppercase text-xs tracking-wider">
+                    <th class="px-6 py-3 text-left font-semibold">Student ID</th>
+                    <th class="px-6 py-3 text-left font-semibold">Seat</th>
+                    <th class="px-6 py-3 text-left font-semibold">Hall</th>
+                    <th class="px-6 py-3 text-left font-semibold">Order</th>
+                    <th class="px-6 py-3 text-left font-semibold">Assigned At</th>
+                    <th class="px-6 py-3 text-right font-semibold">Action</th>
+                </tr>
+            </thead>
+            <tbody class="divide-y divide-slate-100">
+                {% for a in assignments %}
+                <tr class="hover:bg-slate-50">
+                    <td class="px-6 py-4 font-semibold text-slate-800">{{ a.student_id }}</td>
+                    <td class="px-6 py-4 text-slate-600">
+                        <span class="inline-flex items-center gap-2">
+                            <span class="w-2.5 h-2.5 rounded-full" style="background: {{ a.seat.room.color }};"></span>
+                            {{ a.seat.seat_label }}
+                        </span>
+                    </td>
+                    <td class="px-6 py-4 text-slate-600">
+                        <span class="inline-flex items-center gap-2">
+                            <span class="w-2.5 h-2.5 rounded-full" style="background: {{ a.seat.hall.color }};"></span>
+                            {{ a.seat.hall.name }}
+                        </span>
+                    </td>
+                    <td class="px-6 py-4">
+                        {% if a.order == 1 %}
+                        <span class="text-[11px] font-bold uppercase bg-indigo-100 text-indigo-700 px-2 py-0.5 rounded-full">Primary</span>
+                        {% else %}
+                        <span class="text-[11px] font-bold uppercase bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full">Secondary</span>
+                        {% endif %}
+                    </td>
+                    <td class="px-6 py-4 text-slate-500">{{ a.assigned_at|date:"M d, Y H:i" }}</td>
+                    <td class="px-6 py-4 text-right">
+                        <form method="post" action="{% url 'allocations:revoke_assignment' a.pk %}" class="inline"
+                              onsubmit="return confirm('Release {{ a.student_id }} from {{ a.seat.seat_label }}?');">
+                            {% csrf_token %}
+                            <button type="submit" class="px-3 py-1.5 rounded-lg bg-rose-50 text-rose-600 text-xs font-bold hover:bg-rose-100 transition">Release</button>
+                        </form>
+                    </td>
+                </tr>
+                {% empty %}
+                <tr>
+                    <td colspan="6" class="px-6 py-10 text-center text-slate-400">
+                        No active assignments. <a href="{% url 'allocations:assign' %}" class="text-indigo-600 font-semibold">Assign a seat →</a>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden mt-8">
+    <div class="px-6 py-5 border-b border-slate-200">
+        <h3 class="font-bold text-slate-800">Recent Activity</h3>
+    </div>
+    <div class="overflow-x-auto">
+        <table class="w-full text-sm">
+            <thead>
+                <tr class="bg-slate-50 text-slate-500 uppercase text-xs tracking-wider">
+                    <th class="px-6 py-3 text-left font-semibold">Action</th>
+                    <th class="px-6 py-3 text-left font-semibold">Student ID</th>
+                    <th class="px-6 py-3 text-left font-semibold">Seat</th>
+                    <th class="px-6 py-3 text-left font-semibold">Order</th>
+                    <th class="px-6 py-3 text-left font-semibold">By</th>
+                    <th class="px-6 py-3 text-left font-semibold">Time</th>
+                </tr>
+            </thead>
+            <tbody class="divide-y divide-slate-100">
+                {% for log in logs %}
+                <tr class="hover:bg-slate-50">
+                    <td class="px-6 py-3">
+                        {% if log.action == 'assigned' %}
+                        <span class="text-[11px] font-bold uppercase bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded-full">Assigned</span>
+                        {% else %}
+                        <span class="text-[11px] font-bold uppercase bg-rose-100 text-rose-700 px-2 py-0.5 rounded-full">Released</span>
+                        {% endif %}
+                    </td>
+                    <td class="px-6 py-3 font-semibold text-slate-800">{{ log.student_id }}</td>
+                    <td class="px-6 py-3 text-slate-600">{{ log.seat.seat_label }}</td>
+                    <td class="px-6 py-3 text-slate-500">{{ log.get_order_display }}</td>
+                    <td class="px-6 py-3 text-slate-500">{{ log.performed_by|default:'—' }}</td>
+                    <td class="px-6 py-3 text-slate-500">{{ log.created_at|date:"M d, Y H:i" }}</td>
+                </tr>
+                {% empty %}
+                <tr>
+                    <td colspan="6" class="px-6 py-10 text-center text-slate-400">No activity yet.</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}

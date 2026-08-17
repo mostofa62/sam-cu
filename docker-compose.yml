@@ -1,0 +1,27 @@
+services:
+  web:
+    build:
+      context: .
+    container_name: hsm_web
+    restart: unless-stopped
+    command: gunicorn hsm.wsgi:application --bind 0.0.0.0:8000 --workers 2
+    environment:
+      DEBUG: ${DEBUG:-True}
+      SECRET_KEY: ${SECRET_KEY:-django-insecure-cg%v6itz2tdc_)3o(se92@r)u_2=b0x9=an%l2t(ce4-(z5bvv}
+      POSTGRES_DB: ${POSTGRES_DB:-hallseatmanagment}
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-1234}
+      POSTGRES_HOST: ${POSTGRES_HOST:-host.docker.internal}
+      POSTGRES_PORT: ${POSTGRES_PORT:-5432}
+    ports:
+      - "9005:8000"
+    volumes:
+      - .:/app
+      - static_volume:/app/staticfiles
+      - media_volume:/app/media
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+
+volumes:
+  static_volume:
+  media_volume:

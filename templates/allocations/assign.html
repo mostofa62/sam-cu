@@ -1,0 +1,134 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="max-w-3xl bg-white rounded-xl shadow-sm border border-slate-200 p-8">
+    <h3 class="text-lg font-bold text-slate-800 mb-1">Assign a Seat to a Student</h3>
+    <p class="text-sm text-slate-500 mb-6">A seat can be shared by up to two students — the order (primary / secondary) is picked automatically.</p>
+
+    <form method="post" class="space-y-5">
+        {% csrf_token %}
+        {% if form.non_field_errors %}
+        <div class="px-4 py-3 rounded-lg bg-red-50 text-red-700 text-sm border border-red-200">{{ form.non_field_errors }}</div>
+        {% endif %}
+
+        <div>
+            <label class="block text-sm font-semibold text-slate-700 mb-1.5">Student ID</label>
+            {{ form.student_id }}
+            {% for error in form.student_id.errors %}
+            <p class="text-xs text-red-600 mt-1">{{ error }}</p>
+            {% endfor %}
+            <p class="text-xs text-slate-400 mt-1.5">Student master table will be linked later.</p>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-5">
+            <div>
+                <label class="block text-sm font-semibold text-slate-700 mb-1.5">Hall</label>
+                {{ form.hall }}
+                {% for error in form.hall.errors %}
+                <p class="text-xs text-red-600 mt-1">{{ error }}</p>
+                {% endfor %}
+            </div>
+            <div>
+                <label class="block text-sm font-semibold text-slate-700 mb-1.5">Room</label>
+                {{ form.room }}
+                {% for error in form.room.errors %}
+                <p class="text-xs text-red-600 mt-1">{{ error }}</p>
+                {% endfor %}
+            </div>
+            <div>
+                <label class="block text-sm font-semibold text-slate-700 mb-1.5">Seat</label>
+                {{ form.seat }}
+                {% for error in form.seat.errors %}
+                <p class="text-xs text-red-600 mt-1">{{ error }}</p>
+                {% endfor %}
+            </div>
+        </div>
+
+        <div id="seat-hint" class="hidden text-sm rounded-lg px-4 py-3 bg-slate-50 border border-slate-200"></div>
+
+        <div class="pt-2">
+            <button type="submit" class="px-6 py-3 rounded-lg bg-indigo-600 text-white font-bold hover:bg-indigo-700 transition">
+                Assign Seat
+            </button>
+            <a href="{% url 'dashboard:home' %}" class="ml-3 px-6 py-3 rounded-lg bg-slate-100 text-slate-700 font-semibold hover:bg-slate-200 transition">Cancel</a>
+        </div>
+    </form>
+</div>
+
+<div class="max-w-3xl mt-8">
+    <h4 class="font-bold text-slate-700 mb-3">Seat availability legend</h4>
+    <div class="flex flex-wrap gap-4 text-sm text-slate-600">
+        <span class="inline-flex items-center gap-2"><span class="w-3 h-3 rounded-full bg-emerald-500"></span> Vacant</span>
+        <span class="inline-flex items-center gap-2"><span class="w-3 h-3 rounded-full bg-amber-500"></span> 1 student — secondary slot open</span>
+        <span class="inline-flex items-center gap-2"><span class="w-3 h-3 rounded-full bg-slate-300"></span> Full (2 students)</span>
+        <span class="inline-flex items-center gap-2"><span class="w-3 h-3 rounded-full bg-rose-500"></span> On hold</span>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    const csrf = document.querySelector('[name=csrfmiddlewaretoken]').value;
+    const hallSelect = document.getElementById('id_hall');
+    const roomSelect = document.getElementById('id_room');
+    const seatSelect = document.getElementById('id_seat');
+    const hint = document.getElementById('seat-hint');
+
+    function roomOptions(hallId) {
+        roomSelect.innerHTML = '<option value="">Select Room</option>';
+        seatSelect.innerHTML = '<option value="">Select Seat</option>';
+        hint.classList.add('hidden');
+        if (!hallId) return;
+        fetch(`/allocations/rooms-json/?hall_id=${hallId}`)
+            .then(r => r.json())
+            .then(data => {
+                data.rooms.forEach(room => {
+                    const opt = document.createElement('option');
+                    opt.value = room.id;
+                    opt.textContent = room.label;
+                    roomSelect.appendChild(opt);
+                });
+            });
+    }
+
+    function seatOptions(roomId) {
+        seatSelect.innerHTML = '<option value="">Select Seat</option>';
+        hint.classList.add('hidden');
+        if (!roomId) return;
+        fetch(`/allocations/room-seats.json?room_id=${roomId}`)
+            .then(r => r.json())
+            .then(data => {
+                let available = 0;
+                data.seats.forEach(seat => {
+                    const opt = document.createElement('option');
+                    opt.value = seat.id;
+                    opt.textContent = seat.label;
+                    const colors = { free: '#10b981', secondary: '#f59e0b', full: '#cbd5e1', maintenance: '#f43f5e' };
+                    opt.style.color = colors[seat.status] || '#334155';
+                    if (seat.status === 'full' || seat.status === 'maintenance') {
+                        opt.disabled = true;
+                        opt.textContent += seat.status === 'full' ? ' — Full' : ' — On hold';
+                    } else {
+                        available++;
+                    }
+                    seatSelect.appendChild(opt);
+                });
+                if (available === 0) {
+                    hint.textContent = 'No available seats in this room (all full or on hold).';
+                    hint.classList.remove('hidden');
+                    hint.className = 'text-sm rounded-lg px-4 py-3 bg-amber-50 border border-amber-200 text-amber-700';
+                } else {
+                    hint.textContent = `${available} seat(s) available in this room.`;
+                    hint.classList.remove('hidden');
+                    hint.className = 'text-sm rounded-lg px-4 py-3 bg-emerald-50 border border-emerald-200 text-emerald-700';
+                }
+            });
+    }
+
+    hallSelect.addEventListener('change', () => roomOptions(hallSelect.value));
+    roomSelect.addEventListener('change', () => seatOptions(roomSelect.value));
+
+    // Preserve selections after form validation errors
+    if (hallSelect.value) roomOptions(hallSelect.value);
+</script>
+{% endblock %}
