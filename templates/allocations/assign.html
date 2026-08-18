@@ -74,30 +74,43 @@
     const seatSelect = document.getElementById('id_seat');
     const hint = document.getElementById('seat-hint');
 
-    function roomOptions(hallId) {
+    // Monotonic sequence guards against out-of-order responses, so a stale
+    // request can never overwrite the results of a more recent selection.
+    let requestSeq = 0;
+
+    function resetRoomSelect() {
         roomSelect.innerHTML = '<option value="">Select Room</option>';
         seatSelect.innerHTML = '<option value="">Select Seat</option>';
         hint.classList.add('hidden');
-        if (!hallId) return;
+    }
+
+    function resetSeatSelect() {
+        seatSelect.innerHTML = '<option value="">Select Seat</option>';
+        hint.classList.add('hidden');
+    }
+
+    function loadRooms(hallId) {
+        const seq = ++requestSeq;
         fetch(`/allocations/rooms-json/?hall_id=${hallId}`)
             .then(r => r.json())
             .then(data => {
+                if (seq !== requestSeq) return;
                 data.rooms.forEach(room => {
                     const opt = document.createElement('option');
                     opt.value = room.id;
                     opt.textContent = room.label;
                     roomSelect.appendChild(opt);
                 });
-            });
+            })
+            .catch(() => {});
     }
 
-    function seatOptions(roomId) {
-        seatSelect.innerHTML = '<option value="">Select Seat</option>';
-        hint.classList.add('hidden');
-        if (!roomId) return;
+    function loadSeats(roomId) {
+        const seq = ++requestSeq;
         fetch(`/allocations/room-seats.json?room_id=${roomId}`)
             .then(r => r.json())
             .then(data => {
+                if (seq !== requestSeq) return;
                 let available = 0;
                 data.seats.forEach(seat => {
                     const opt = document.createElement('option');
@@ -113,20 +126,30 @@
                     }
                     seatSelect.appendChild(opt);
                 });
-                if (available === 0) {
-                    hint.textContent = 'No available seats in this room (all full or on hold).';
-                    hint.classList.remove('hidden');
-                    hint.className = 'text-sm rounded-lg px-4 py-3 bg-amber-50 border border-amber-200 text-amber-700';
-                } else {
-                    hint.textContent = `${available} seat(s) available in this room.`;
-                    hint.classList.remove('hidden');
-                    hint.className = 'text-sm rounded-lg px-4 py-3 bg-emerald-50 border border-emerald-200 text-emerald-700';
-                }
-            });
+                hint.className = 'text-sm rounded-lg px-4 py-3 ' +
+                    (available === 0
+                        ? 'bg-amber-50 border border-amber-200 text-amber-700'
+                        : 'bg-emerald-50 border border-emerald-200 text-emerald-700');
+                hint.textContent = available === 0
+                    ? 'No available seats in this room (all full or on hold).'
+                    : `${available} seat(s) available in this room.`;
+                hint.classList.remove('hidden');
+            })
+            .catch(() => {});
     }
 
-    hallSelect.addEventListener('change', () => roomOptions(hallSelect.value));
-    roomSelect.addEventListener('change', () => seatOptions(roomSelect.value));
+    const roomOptions = HSM.throttle(loadRooms, 300);
+    const seatOptions = HSM.throttle(loadSeats, 300);
+
+    hallSelect.addEventListener('change', () => {
+        resetRoomSelect();
+        roomOptions(hallSelect.value);
+    });
+
+    roomSelect.addEventListener('change', () => {
+        resetSeatSelect();
+        seatOptions(roomSelect.value);
+    });
 
     // Preserve selections after form validation errors
     if (hallSelect.value) roomOptions(hallSelect.value);
