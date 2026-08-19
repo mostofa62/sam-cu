@@ -59,10 +59,14 @@ class SeatAssignment(models.Model):
             # A student can have only one active seat at a time.
             student_other = SeatAssignment.objects.filter(
                 student_id=self.student_id, is_active=True,
-            ).exclude(pk=self.pk).exists()
+            ).exclude(pk=self.pk).select_related(
+                'seat__room__floor__block', 'seat__hall',
+            ).first()
             if student_other:
+                when = timezone.localtime(student_other.assigned_at).strftime('%d %b %Y, %I:%M %p')
                 raise ValidationError(
-                    f'Student {self.student_id} already has an active seat assigned. Release it first.'
+                    f'Student {self.student_id} already has an active seat assigned — '
+                    f'{student_other.seat.full_label} (allotted {when}).'
                 )
 
             if self.seat.under_maintenance:
