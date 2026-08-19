@@ -57,6 +57,12 @@ class User(AbstractBaseUser, PermissionsMixin):
     date_joined = models.DateTimeField(default=timezone.now)
     last_login = models.DateTimeField(null=True, blank=True)
 
+    managed_hall = models.ForeignKey(
+        'halls.Hall', on_delete=models.SET_NULL, null=True, blank=True, related_name='managers',
+        help_text='The single hall this user manages (a hall may have many managers). '
+                  'Superusers always see every hall.',
+    )
+
     objects = UserManager()
 
     USERNAME_FIELD = 'email'
@@ -71,3 +77,16 @@ class User(AbstractBaseUser, PermissionsMixin):
         if self.full_name:
             return self.full_name
         return self.email or self.phone or f'User #{self.pk}'
+
+    @property
+    def is_hall_manager(self):
+        return self.managed_hall_id is not None
+
+    def visible_halls(self):
+        """Halls the user can see/act on. Superusers get every hall, everyone else only their own managed hall."""
+        from halls.models import Hall
+        if self.is_superuser:
+            return Hall.objects.all()
+        if self.managed_hall_id is None:
+            return Hall.objects.none()
+        return Hall.objects.filter(pk=self.managed_hall_id)

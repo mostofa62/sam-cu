@@ -21,6 +21,16 @@
         </div>
 
         <div class="grid grid-cols-1 md:grid-cols-3 gap-5">
+            {% if single_hall %}
+            <div>
+                <label class="block text-sm font-semibold text-slate-700 mb-1.5">Managed Hall</label>
+                <div class="flex items-center gap-2.5 px-4 py-3 rounded-lg border border-indigo-200 bg-indigo-50">
+                    <span class="w-3 h-3 rounded-full flex-shrink-0" style="background: {{ single_hall.color }};"></span>
+                    <span class="text-sm font-medium text-indigo-900 truncate">{{ single_hall.name }} ({{ single_hall.get_hall_type_display }})</span>
+                </div>
+                {{ form.hall }}
+            </div>
+            {% else %}
             <div>
                 <label class="block text-sm font-semibold text-slate-700 mb-1.5">Hall</label>
                 {{ form.hall }}
@@ -28,6 +38,7 @@
                 <p class="text-xs text-red-600 mt-1">{{ error }}</p>
                 {% endfor %}
             </div>
+            {% endif %}
             <div>
                 <label class="block text-sm font-semibold text-slate-700 mb-1.5">Room</label>
                 {{ form.room }}
@@ -69,7 +80,6 @@
 {% block scripts %}
 <script>
     const csrf = document.querySelector('[name=csrfmiddlewaretoken]').value;
-    const hallSelect = document.getElementById('id_hall');
     const roomSelect = document.getElementById('id_room');
     const seatSelect = document.getElementById('id_seat');
     const hint = document.getElementById('seat-hint');
@@ -77,12 +87,6 @@
     // Monotonic sequence guards against out-of-order responses, so a stale
     // request can never overwrite the results of a more recent selection.
     let requestSeq = 0;
-
-    function resetRoomSelect() {
-        roomSelect.innerHTML = '<option value="">Select Room</option>';
-        seatSelect.innerHTML = '<option value="">Select Seat</option>';
-        hint.classList.add('hidden');
-    }
 
     function resetSeatSelect() {
         seatSelect.innerHTML = '<option value="">Select Seat</option>';
@@ -95,6 +99,8 @@
             .then(r => r.json())
             .then(data => {
                 if (seq !== requestSeq) return;
+                const roomSelect = document.getElementById('id_room');
+                roomSelect.innerHTML = '<option value="">Select Room</option>';
                 data.rooms.forEach(room => {
                     const opt = document.createElement('option');
                     opt.value = room.id;
@@ -138,20 +144,26 @@
             .catch(() => {});
     }
 
-    const roomOptions = HSM.throttle(loadRooms, 300);
     const seatOptions = HSM.throttle(loadSeats, 300);
 
-    hallSelect.addEventListener('change', () => {
-        resetRoomSelect();
-        roomOptions(hallSelect.value);
-    });
+    // Rooms are server-rendered for single-hall managers, so only cascade from
+    // the hall picker when it is actually a visible <select> (multi-hall / admin).
+    const hallSelect = document.getElementById('id_hall');
+    if (hallSelect && hallSelect.tagName === 'SELECT') {
+        const roomOptions = HSM.throttle(loadRooms, 300);
+        hallSelect.addEventListener('change', () => {
+            roomSelect.innerHTML = '<option value="">Select Room</option>';
+            resetSeatSelect();
+            roomOptions(hallSelect.value);
+        });
+
+        // Preserve selections after form validation errors
+        if (hallSelect.value) roomOptions(hallSelect.value);
+    }
 
     roomSelect.addEventListener('change', () => {
         resetSeatSelect();
         seatOptions(roomSelect.value);
     });
-
-    // Preserve selections after form validation errors
-    if (hallSelect.value) roomOptions(hallSelect.value);
 </script>
 {% endblock %}

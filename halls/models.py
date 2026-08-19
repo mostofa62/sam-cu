@@ -131,6 +131,13 @@ class Room(TimeStampedModel):
     def __str__(self):
         return f'{self.floor} - Room {self.name}'
 
+    @property
+    def compact_label(self):
+        """Room label without the hall name, e.g. 'Block A / Ground Floor - Room 101'."""
+        floor = self.floor
+        prefix = f'{floor.block.name} / {floor.name}' if floor.block_id else floor.name
+        return f'{prefix} - Room {self.name}'
+
 
 class Seat(TimeStampedModel):
     """A physical seat inside a room."""
@@ -154,6 +161,13 @@ class Seat(TimeStampedModel):
     @property
     def seat_label(self):
         return f'{self.room.name}/{self.seat_number}'
+
+    @property
+    def full_label(self):
+        """Fully-qualified label incl. hall, e.g. 'Hall X - Block A / Ground Floor - Room 101 - Seat 1'."""
+        floor = self.room.floor
+        prefix = f'{floor.block.name} / {floor.name}' if floor.block_id else floor.name
+        return f'{self.hall.name} - {prefix} - Room {self.room.name} - Seat {self.seat_number}'
 
     @property
     def under_maintenance(self):
