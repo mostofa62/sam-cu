@@ -8,7 +8,8 @@ from django.shortcuts import redirect, render
 from halls.models import Room, Seat
 
 from .forms import AssignForm, RevokeForm
-from .models import SeatAssignment, SeatAssignmentLog, SeatMaintenance
+from .models import (SeatAssignment, SeatAssignmentLog, SeatMaintenance,
+                     SeatReleaseReason)
 from .services import assign_seat, revoke_seat
 
 
@@ -57,6 +58,7 @@ def revoke(request):
                     performed_by=request.user,
                     note='Released from web UI.',
                     halls=visible_halls,
+                    reason=form.cleaned_data['reason'],
                 )
                 messages.success(request, f'Released {len(released)} seat assignment(s).')
                 return redirect('allocations:active_assignments')
@@ -82,11 +84,12 @@ def active_assignments(request):
     ).order_by('-assigned_at')
     logs = SeatAssignmentLog.objects.filter(
         seat__hall__in=visible_halls,
-    ).select_related('seat__room', 'performed_by')[:20]
+    ).select_related('seat__room', 'performed_by', 'release_reason')[:20]
     context = {
         'page_title': 'Active Assignments',
         'assignments': assignments,
         'logs': logs,
+        'release_reasons': SeatReleaseReason.objects.filter(is_active=True),
     }
     return render(request, 'allocations/assignments.html', context)
 
@@ -94,6 +97,15 @@ def active_assignments(request):
 @login_required
 def revoke_assignment(request, pk):
     if request.method == 'POST':
+        reason_id = request.POST.get('reason')
+        if not reason_id:
+            messages.error(request, 'Please select a release reason.')
+            return redirect('allocations:active_assignments')
+        try:
+            reason = SeatReleaseReason.objects.get(pk=reason_id, is_active=True)
+        except SeatReleaseReason.DoesNotExist:
+            messages.error(request, 'Invalid release reason selected.')
+            return redirect('allocations:active_assignments')
         try:
             assignment = SeatAssignment.objects.get(
                 pk=pk, is_active=True, seat__hall__in=request.user.visible_halls(),
@@ -103,6 +115,7 @@ def revoke_assignment(request, pk):
                 seat=assignment.seat,
                 performed_by=request.user,
                 note='Released from active list.',
+                reason=reason,
             )
             messages.success(request, f'Released {assignment.student_id} from {assignment.seat.seat_label}.')
         except (SeatAssignment.DoesNotExist, ValidationError) as e:

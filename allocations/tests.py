@@ -3,7 +3,8 @@ from django.test import TestCase
 from django.urls import reverse
 
 from accounts.models import User
-from allocations.models import OrderChoices, SeatAssignment, SeatMaintenance
+from allocations.models import (OrderChoices, SeatAssignment, SeatMaintenance,
+                                SeatReleaseReason)
 from halls.models import Block, Floor, Hall, Room, Seat
 
 
@@ -236,6 +237,7 @@ class AssignmentsScopingTests(TestCase):
         self.user.managed_hall = self.hall_x
         self.user.save()
         self.client.login(email='a@example.com', password='pw')
+        self.reason = SeatReleaseReason.objects.create(name='Test reason', sort_order=0)
 
     def test_active_assignments_only_shows_managed_halls(self):
         SeatAssignment.objects.create(seat=self.seats_x[0], student_id='IN-X', order=OrderChoices.PRIMARY, is_active=True)
@@ -251,10 +253,31 @@ class AssignmentsScopingTests(TestCase):
             seat=Seat.objects.filter(hall=self.hall_y).first(),
             student_id='STU-Y', order=OrderChoices.PRIMARY, is_active=True,
         )
-        resp = self.client.post(reverse('allocations:revoke_assignment', args=[assignment_y.pk]))
+        resp = self.client.post(reverse('allocations:revoke_assignment', args=[assignment_y.pk]),
+                                {'reason': self.reason.id})
         self.assertEqual(resp.status_code, 302)
         assignment_y.refresh_from_db()
         self.assertTrue(assignment_y.is_active)
+
+    def test_revoke_assignment_inside_managed_halls_records_reason(self):
+        assignment_x = SeatAssignment.objects.create(
+            seat=self.seats_x[0], student_id='STU-X', order=OrderChoices.PRIMARY, is_active=True,
+        )
+        resp = self.client.post(reverse('allocations:revoke_assignment', args=[assignment_x.pk]),
+                                {'reason': self.reason.id})
+        self.assertEqual(resp.status_code, 302)
+        assignment_x.refresh_from_db()
+        self.assertFalse(assignment_x.is_active)
+        self.assertEqual(assignment_x.released_reason, self.reason)
+
+    def test_revoke_assignment_requires_reason(self):
+        assignment_x = SeatAssignment.objects.create(
+            seat=self.seats_x[0], student_id='STU-X2', order=OrderChoices.PRIMARY, is_active=True,
+        )
+        resp = self.client.post(reverse('allocations:revoke_assignment', args=[assignment_x.pk]))
+        self.assertEqual(resp.status_code, 302)
+        assignment_x.refresh_from_db()
+        self.assertTrue(assignment_x.is_active)
 
     def test_rooms_json_scoped(self):
         resp = self.client.get(reverse('allocations:rooms_json'), {'hall_id': self.hall_y.id})
@@ -284,13 +307,14 @@ class RevokeScopingTests(TestCase):
         self.user.managed_hall = self.hall_x
         self.user.save()
         self.client.login(email='a@example.com', password='pw')
+        self.reason = SeatReleaseReason.objects.create(name='Test reason', sort_order=0)
 
     def test_revoke_bulk_form_only_releases_halls_in_scope(self):
         # Student sits only in hall Y (NOT managed). Revoking from the manager's scope
         # must report "belongs to another hall" and leave the assignment untouched.
         SeatAssignment.objects.create(seat=Seat.objects.filter(hall=self.hall_y).first(),
                                       student_id='STU-Y', order=OrderChoices.PRIMARY, is_active=True)
-        resp = self.client.post(reverse('allocations:revoke'), {'student_id': 'STU-Y'})
+        resp = self.client.post(reverse('allocations:revoke'), {'student_id': 'STU-Y', 'reason': self.reason.id})
         self.assertEqual(resp.status_code, 200)
         self.assertContains(resp, 'belongs to another hall')
         self.assertNotContains(resp, 'No active seat assignment found')
@@ -301,7 +325,7 @@ class RevokeScopingTests(TestCase):
         # is in a hall they do not manage. The form must show where the seat is.
         SeatAssignment.objects.create(seat=Seat.objects.filter(hall=self.hall_y).first(),
                                       student_id='20404053', order=OrderChoices.PRIMARY, is_active=True)
-        resp = self.client.post(reverse('allocations:revoke'), {'student_id': '20404053'})
+        resp = self.client.post(reverse('allocations:revoke'), {'student_id': '20404053', 'reason': self.reason.id})
         self.assertEqual(resp.status_code, 200)
         self.assertContains(resp, '20404053')
         self.assertContains(resp, 'Hall Y - Block A / Ground Floor - Room 101 - Seat 1')
@@ -312,14 +336,34 @@ class RevokeScopingTests(TestCase):
     def test_revoke_own_hall_student_can_still_release(self):
         SeatAssignment.objects.create(seat=Seat.objects.filter(hall=self.hall_x).first(),
                                       student_id='19105036', order=OrderChoices.PRIMARY, is_active=True)
-        resp = self.client.post(reverse('allocations:revoke'), {'student_id': '19105036'})
+        resp = self.client.post(reverse('allocations:revoke'), {'student_id': '19105036', 'reason': self.reason.id})
         self.assertEqual(resp.status_code, 302)
         self.assertFalse(SeatAssignment.objects.filter(student_id='19105036', is_active=True).exists())
+
+    def test_revoke_requires_a_reason(self):
+        # Releasing without a reason must re-render the form with an error.
+        SeatAssignment.objects.create(seat=Seat.objects.filter(hall=self.hall_x).first(),
+                                      student_id='19105037', order=OrderChoices.PRIMARY, is_active=True)
+        resp = self.client.post(reverse('allocations:revoke'), {'student_id': '19105037'})
+        self.assertEqual(resp.status_code, 200)
+        self.assertTrue(SeatAssignment.objects.filter(student_id='19105037', is_active=True).exists())
+
+    def test_release_records_reason_on_assignment_and_log(self):
+        from allocations.models import SeatAssignmentLog
+        assignment = SeatAssignment.objects.create(seat=Seat.objects.filter(hall=self.hall_x).first(),
+                                                   student_id='19105038', order=OrderChoices.PRIMARY, is_active=True)
+        resp = self.client.post(reverse('allocations:revoke'), {'student_id': '19105038', 'reason': self.reason.id})
+        self.assertEqual(resp.status_code, 302)
+        assignment.refresh_from_db()
+        self.assertFalse(assignment.is_active)
+        self.assertEqual(assignment.released_reason, self.reason)
+        log = SeatAssignmentLog.objects.get(student_id='19105038', action='released')
+        self.assertEqual(log.release_reason, self.reason)
 
     def test_revoke_service_scoped_to_halls(self):
         from .services import revoke_seat
         SeatAssignment.objects.create(seat=Seat.objects.filter(hall=self.hall_y).first(),
                                       student_id='STU-Y', order=OrderChoices.PRIMARY, is_active=True)
         with self.assertRaises(ValidationError):
-            revoke_seat('STU-Y', halls=Hall.objects.filter(pk=self.hall_x.pk))
+            revoke_seat('STU-Y', halls=Hall.objects.filter(pk=self.hall_x.pk), reason=self.reason)
         self.assertTrue(SeatAssignment.objects.filter(student_id='STU-Y', is_active=True).exists())

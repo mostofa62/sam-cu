@@ -8,6 +8,8 @@ services:
     environment:
       DEBUG: ${DEBUG:-True}
       SECRET_KEY: ${SECRET_KEY:-django-insecure-cg%v6itz2tdc_)3o(se92@r)u_2=b0x9=an%l2t(ce4-(z5bvv}
+      BASE_PATH: ${BASE_PATH:-sam}
+      CSRF_TRUSTED_ORIGINS: ${CSRF_TRUSTED_ORIGINS:-https://proto.cu.ac.bd}
       POSTGRES_DB: ${POSTGRES_DB:-hallseatmanagment}
       POSTGRES_USER: ${POSTGRES_USER:-postgres}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-1234}
@@ -21,7 +23,29 @@ services:
       - media_volume:/app/media
     extra_hosts:
       - "host.docker.internal:host-gateway"
+    networks:
+      - proxy
+
+    labels:
+      - "traefik.enable=true"
+
+      # https://proto.cu.ac.bd/sam
+      - "traefik.http.routers.hsm.rule=Host(`proto.cu.ac.bd`) && PathPrefix(`/sam`)"
+      - "traefik.http.routers.hsm.entrypoints=websecure"
+      - "traefik.http.routers.hsm.tls=true"
+      - "traefik.http.routers.hsm.tls.certresolver=letsencrypt"
+
+      # Remove /sam before forwarding to Django
+      - "traefik.http.middlewares.hsm-strip.stripprefix.prefixes=/sam"
+      - "traefik.http.routers.hsm.middlewares=hsm-strip"
+
+      # Gunicorn internal port
+      - "traefik.http.services.hsm.loadbalancer.server.port=8000"
 
 volumes:
   static_volume:
   media_volume:
+
+networks:
+  proxy:
+    external: true

@@ -50,6 +50,11 @@
                         <form method="post" action="{% url 'allocations:revoke_assignment' a.pk %}" class="inline"
                               onsubmit="return confirm('Release {{ a.student_id }} from {{ a.seat.seat_label }}?');">
                             {% csrf_token %}
+                            <select name="reason" required
+                                    class="mr-2 text-xs border border-slate-300 rounded-lg px-2 py-1.5 text-slate-600 focus:outline-none focus:ring-2 focus:ring-rose-500">
+                                <option value="">Select reason…</option>
+                                {% for r in release_reasons %}<option value="{{ r.pk }}">{{ r.name }}</option>{% endfor %}
+                            </select>
                             <button type="submit" class="px-3 py-1.5 rounded-lg bg-rose-50 text-rose-600 text-xs font-bold hover:bg-rose-100 transition">Release</button>
                         </form>
                     </td>
@@ -78,6 +83,7 @@
                     <th class="px-6 py-3 text-left font-semibold">Student ID</th>
                     <th class="px-6 py-3 text-left font-semibold">Seat</th>
                     <th class="px-6 py-3 text-left font-semibold">Order</th>
+                    <th class="px-6 py-3 text-left font-semibold">Reason</th>
                     <th class="px-6 py-3 text-left font-semibold">By</th>
                     <th class="px-6 py-3 text-left font-semibold">Time</th>
                 </tr>
@@ -95,12 +101,20 @@
                     <td class="px-6 py-3 font-semibold text-slate-800">{{ log.student_id }}</td>
                     <td class="px-6 py-3 text-slate-600">{{ log.seat.seat_label }}</td>
                     <td class="px-6 py-3 text-slate-500">{{ log.get_order_display }}</td>
+                    <td class="px-6 py-3 text-slate-600">
+                        {% if log.release_reason %}
+                        <span class="inline-flex max-w-[240px] items-center gap-1.5">
+                            <span class="w-1.5 h-1.5 rounded-full bg-rose-400 shrink-0"></span>
+                            <span class="truncate">{{ log.release_reason.name }}</span>
+                        </span>
+                        {% else %}<span class="text-slate-300">—</span>{% endif %}
+                    </td>
                     <td class="px-6 py-3 text-slate-500">{{ log.performed_by|default:'—' }}</td>
                     <td class="px-6 py-3 text-slate-500">{{ log.created_at|date:"M d, Y H:i" }}</td>
                 </tr>
                 {% empty %}
                 <tr>
-                    <td colspan="6" class="px-6 py-10 text-center text-slate-400">No activity yet.</td>
+                    <td colspan="7" class="px-6 py-10 text-center text-slate-400">No activity yet.</td>
                 </tr>
                 {% endfor %}
             </tbody>
