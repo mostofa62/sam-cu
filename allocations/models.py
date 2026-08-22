@@ -16,6 +16,23 @@ class ActionChoices(models.TextChoices):
     RELEASED = 'released', 'Released'
 
 
+class SeatReleaseReason(models.Model):
+    """Predefined reason a manager selects when releasing a seat from a student."""
+
+    name = models.CharField(max_length=255, unique=True,
+                            help_text='Reason shown in the release dropdown.')
+    is_active = models.BooleanField(default=True, db_index=True)
+    sort_order = models.PositiveSmallIntegerField(default=0)
+
+    class Meta:
+        verbose_name = 'Seat Release Reason'
+        verbose_name_plural = 'Seat Release Reasons'
+        ordering = ['sort_order', 'id']
+
+    def __str__(self):
+        return self.name
+
+
 class SeatAssignment(models.Model):
     """Active allocation of a seat to a student. A seat may be shared by up to two students (primary/secondary)."""
 
@@ -27,6 +44,11 @@ class SeatAssignment(models.Model):
     assigned_at = models.DateTimeField(default=timezone.now)
     is_active = models.BooleanField(default=True, db_index=True)
     released_at = models.DateTimeField(null=True, blank=True)
+    released_reason = models.ForeignKey(
+        SeatReleaseReason, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='assignments',
+        help_text='Reason selected when the seat was released from this student.',
+    )
 
     class Meta:
         verbose_name = 'Seat Assignment'
@@ -87,6 +109,11 @@ class SeatAssignmentLog(models.Model):
     order = models.PositiveSmallIntegerField(choices=OrderChoices.choices, default=OrderChoices.PRIMARY)
     action = models.CharField(max_length=10, choices=ActionChoices.choices, db_index=True)
     note = models.CharField(max_length=255, blank=True)
+    release_reason = models.ForeignKey(
+        SeatReleaseReason, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='logs',
+        help_text='Reason selected when a seat was released.',
+    )
     performed_by = models.ForeignKey(
         settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True,
         related_name='assignment_logs',

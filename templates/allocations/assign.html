@@ -79,6 +79,8 @@
 
 {% block scripts %}
 <script>
+    const roomsJsonUrl = "{% url 'allocations:rooms_json' %}";
+    const roomSeatsJsonUrl = "{% url 'allocations:room_seats_json' %}";
     const csrf = document.querySelector('[name=csrfmiddlewaretoken]').value;
     const roomSelect = document.getElementById('id_room');
     const seatSelect = document.getElementById('id_seat');
@@ -95,7 +97,7 @@
 
     function loadRooms(hallId) {
         const seq = ++requestSeq;
-        fetch(`/allocations/rooms-json/?hall_id=${hallId}`)
+        fetch(`${roomsJsonUrl}?hall_id=${hallId}`)
             .then(r => r.json())
             .then(data => {
                 if (seq !== requestSeq) return;
@@ -113,7 +115,7 @@
 
     function loadSeats(roomId) {
         const seq = ++requestSeq;
-        fetch(`/allocations/room-seats.json?room_id=${roomId}`)
+        fetch(`${roomSeatsJsonUrl}?room_id=${roomId}`)
             .then(r => r.json())
             .then(data => {
                 if (seq !== requestSeq) return;

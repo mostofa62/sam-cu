@@ -1,16 +1,27 @@
 from django.contrib import admin
 
-from .models import ActionChoices, SeatAssignment, SeatAssignmentLog, SeatMaintenance
+from .models import (ActionChoices, SeatAssignment, SeatAssignmentLog,
+                     SeatMaintenance, SeatReleaseReason)
+
+
+@admin.register(SeatReleaseReason)
+class SeatReleaseReasonAdmin(admin.ModelAdmin):
+    list_display = ('name', 'is_active', 'sort_order')
+    list_filter = ('is_active',)
+    search_fields = ('name',)
+    list_editable = ('is_active', 'sort_order')
 
 
 @admin.register(SeatAssignment)
 class SeatAssignmentAdmin(admin.ModelAdmin):
-    list_display = ('student_id', 'seat', 'order', 'is_active', 'assigned_at', 'released_at')
-    list_filter = ('is_active', 'order', 'seat__hall')
+    list_display = (
+        'student_id', 'seat', 'order', 'is_active', 'assigned_at', 'released_at', 'released_reason',
+    )
+    list_filter = ('is_active', 'order', 'seat__hall', 'released_reason')
     search_fields = ('student_id', 'seat__seat_number', 'seat__room__name')
     list_editable = ('order', 'is_active')
     date_hierarchy = 'assigned_at'
-    readonly_fields = ('assigned_at',)
+    readonly_fields = ('assigned_at', 'released_reason')
 
     def save_model(self, request, obj, form, change):
         super().save_model(request, obj, form, change)
@@ -26,11 +37,12 @@ class SeatAssignmentAdmin(admin.ModelAdmin):
 
 @admin.register(SeatAssignmentLog)
 class SeatAssignmentLogAdmin(admin.ModelAdmin):
-    list_display = ('action', 'student_id', 'seat', 'order', 'performed_by', 'created_at')
-    list_filter = ('action', 'order', 'created_at')
+    list_display = ('action', 'student_id', 'seat', 'order', 'release_reason',
+                    'performed_by', 'created_at')
+    list_filter = ('action', 'order', 'release_reason', 'created_at')
     search_fields = ('student_id', 'seat__seat_number', 'seat__room__name')
     date_hierarchy = 'created_at'
-    readonly_fields = ('student_id', 'seat', 'order', 'action', 'note', 'performed_by', 'created_at')
+    readonly_fields = ('student_id', 'seat', 'order', 'action', 'note', 'release_reason', 'performed_by', 'created_at')
 
     def has_add_permission(self, request):
         return False

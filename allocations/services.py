@@ -82,13 +82,17 @@ def assign_seat(seat, student_id, performed_by=None, note=''):
     return assignment
 
 
-def revoke_seat(student_id, seat=None, performed_by=None, note='', halls=None):
+def revoke_seat(student_id, seat=None, performed_by=None, note='', halls=None, reason=None):
     """Release all active seat assignment(s) of a student, optionally for a specific seat.
 
     Pass ``halls`` (an iterable/queryset of Hall) to limit the release to assignments
     inside those halls — used to stop a hall manager from releasing seats in halls
-    they do not manage.
+    they do not manage. ``reason`` must be a ``SeatReleaseReason`` — it is required
+    and recorded on the assignment and in the activity log.
     """
+    if reason is None:
+        raise ValidationError('A release reason must be selected.')
+
     assignments = SeatAssignment.objects.filter(student_id=student_id, is_active=True)
     if seat is not None:
         assignments = assignments.filter(seat=seat)
@@ -114,13 +118,15 @@ def revoke_seat(student_id, seat=None, performed_by=None, note='', halls=None):
     released = []
     for assignment in assignments:
         assignment.is_active = False
-        assignment.save(update_fields=['is_active', 'released_at'])
+        assignment.released_reason = reason
+        assignment.save(update_fields=['is_active', 'released_at', 'released_reason'])
         SeatAssignmentLog.objects.create(
             student_id=student_id,
             seat=assignment.seat,
             order=assignment.order,
             action=ActionChoices.RELEASED,
             note=note,
+            release_reason=reason,
             performed_by=performed_by,
         )
         released.append(assignment)

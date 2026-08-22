@@ -32,6 +32,14 @@ DEBUG = os.getenv('DEBUG', 'True').lower() in ('true', '1', 'yes')
 
 ALLOWED_HOSTS = ['*']
 
+# Origins trusted for CSRF, parsed from a comma-separated environment value,
+# e.g. CSRF_TRUSTED_ORIGINS="https://proto.cu.ac.bd,https://example.com".
+CSRF_TRUSTED_ORIGINS = [
+    origin.strip()
+    for origin in os.getenv('CSRF_TRUSTED_ORIGINS', '').split(',')
+    if origin.strip()
+]
+
 # Application definition
 
 INSTALLED_APPS = [
@@ -133,10 +141,22 @@ USE_I18N = True
 
 USE_TZ = True
 
+# Deployment sub-path, e.g. BASE_PATH=sam -> app served under https://host/sam.
+# Leave blank for local development where the app lives at the root.
+BASE_PATH = os.getenv('BASE_PATH', '').strip().strip('/')
+
+if BASE_PATH:
+    FORCE_SCRIPT_NAME = f'/{BASE_PATH}'
+    STATIC_URL = f'/{BASE_PATH}/static/'
+    MEDIA_URL = f'/{BASE_PATH}/media/'
+else:
+    FORCE_SCRIPT_NAME = None
+    STATIC_URL = 'static/'
+    MEDIA_URL = '/media/'
+
 # Static files (CSS, JavaScript, Images)
 # https://docs.djangoproject.com/en/6.1/howto/static-files/
 
-STATIC_URL = 'static/'
 STATICFILES_DIRS = [BASE_DIR / 'static']
 STATIC_ROOT = BASE_DIR / 'staticfiles'
 
@@ -152,7 +172,6 @@ STORAGES = {
     },
 }
 
-MEDIA_URL = '/media/'
 MEDIA_ROOT = BASE_DIR / 'media'
 
 # Default primary key field type

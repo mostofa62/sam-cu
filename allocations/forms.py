@@ -2,6 +2,8 @@ from django import forms
 
 from halls.models import Block, Floor, Hall, Room, Seat
 
+from .models import SeatReleaseReason
+
 
 class HallChoiceField(forms.ModelChoiceField):
     def label_from_instance(self, obj):
@@ -98,5 +100,13 @@ class RevokeForm(forms.Form):
         widget=forms.TextInput(attrs={
             'class': 'w-full px-4 py-3 rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-red-500',
             'placeholder': 'e.g. 2101CSE001',
+        }),
+    )
+    reason = forms.ModelChoiceField(
+        label='Release Reason',
+        queryset=SeatReleaseReason.objects.filter(is_active=True),
+        empty_label='Select a release reason',
+        widget=forms.Select(attrs={
+            'class': 'w-full px-4 py-3 rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-red-500',
         }),
     )
