@@ -89,7 +89,7 @@ class AssignForm(forms.Form):
         ).values('seat_id').annotate(count=Count('id')).filter(count__gte=2).values_list('seat_id', flat=True)
         available = seats.exclude(id__in=occupied_ids).exclude(
             maintenance_records__is_active=True,
-        ).select_related('room')
+        ).select_related('room', 'room__floor__block', 'hall')
         return available
 
 

@@ -61,9 +61,12 @@ class SubPathServeTests(TestCase):
         resp = self.client.get('/allocations/assignments/')
         self.assertEqual(resp.status_code, 200)
         self.assertContains(resp, '/sam/allocations/assign/')
+        # Each row carries a reason picker whose GET form lands on the
+        # confirmation page with the /sam prefix intact.
         self.assertContains(resp, 'action="/sam/allocations/assignments/%d/revoke/"' % (
             SeatAssignment.objects.get(student_id='STU-1').pk,
         ))
+        self.assertContains(resp, 'name="reason"')
 
     def test_assign_page_json_fetch_urls_prefixed(self):
         resp = self.client.get('/allocations/assign/')

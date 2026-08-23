@@ -1,15 +1,66 @@
 {% extends 'base.html' %}
 
 {% block content %}
-<div class="max-w-xl bg-white rounded-xl shadow-sm border border-slate-200 p-8">
-    <h3 class="text-lg font-bold text-slate-800 mb-1">Release a Seat by Student ID</h3>
-    <p class="text-sm text-slate-500 mb-6">All active assignments of this student will be released and logged.</p>
+<div class="max-w-2xl bg-white rounded-xl shadow-sm border border-slate-200 p-8">
+    <h3 class="text-lg font-bold text-slate-800 mb-1">
+        {% if preview %}Confirm Seat Release{% else %}Release a Seat by Student ID{% endif %}
+    </h3>
+    <p class="text-sm text-slate-500 mb-6">
+        {% if preview %}
+        Review the details below — nothing is released until you confirm.
+        {% else %}
+        Enter the student ID to preview their seat before releasing. All active assignments of this student in your halls will be released and logged.
+        {% endif %}
+    </p>
 
     <form method="post" class="space-y-5">
         {% csrf_token %}
         {% if form.non_field_errors %}
         <div class="px-4 py-3 rounded-lg bg-red-50 text-red-700 text-sm border border-red-200">{{ form.non_field_errors }}</div>
         {% endif %}
+
+        {% if preview %}
+        <input type="hidden" name="student_id" value="{{ form.student_id.value }}">
+        <input type="hidden" name="reason" value="{{ form.reason.value }}">
+
+        <div class="flex flex-wrap items-center gap-2 text-sm">
+            <span class="px-3 py-1.5 rounded-full bg-slate-100 border border-slate-200 font-mono font-semibold text-slate-700">{{ form.student_id.value }}</span>
+            <svg class="w-4 h-4 text-slate-300" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M13 7l5 5m0 0l-5 5m5-5H6"/></svg>
+            <span class="px-3 py-1.5 rounded-full bg-rose-50 border border-rose-100 text-rose-700 font-semibold">Reason: {{ preview.reason.name }}</span>
+        </div>
+
+        {% include 'allocations/partials/student_card.html' with student=preview.student student_id=form.student_id.value %}
+
+        <div class="rounded-xl border border-slate-200 overflow-hidden">
+            <div class="px-5 py-3 bg-slate-50 border-b border-slate-200 flex items-center justify-between gap-3">
+                <h4 class="text-sm font-bold text-slate-700 uppercase tracking-wide">Seat(s) to Release</h4>
+                <span class="text-xs font-medium text-slate-500">{{ preview.assignments|length }} assignment(s)</span>
+            </div>
+            <ul class="divide-y divide-slate-100">
+                {% for a in preview.assignments %}
+                <li class="px-5 py-4 flex flex-wrap items-center justify-between gap-2">
+                    <div>
+                        <p class="text-sm font-semibold text-slate-800 inline-flex items-center gap-2">
+                            <span class="w-2.5 h-2.5 rounded-full flex-shrink-0" style="background: {{ a.seat.hall.color }};"></span>
+                            {{ a.seat.full_label }}
+                        </p>
+                        <p class="text-xs text-slate-500 mt-0.5">Allotted {{ a.assigned_at|date:"M d, Y H:i" }}</p>
+                    </div>
+                    {% if a.order == 1 %}
+                    <span class="text-[11px] font-bold uppercase bg-indigo-100 text-indigo-700 px-2 py-0.5 rounded-full">Primary</span>
+                    {% else %}
+                    <span class="text-[11px] font-bold uppercase bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full">Secondary</span>
+                    {% endif %}
+                </li>
+                {% endfor %}
+            </ul>
+        </div>
+
+        <div class="px-4 py-3 rounded-lg bg-amber-50 border border-amber-200 text-amber-800 text-sm">
+            Releasing will deactivate the assignment(s) above, record the reason
+            <span class="font-bold">{{ preview.reason.name }}</span> and write an entry to the activity log.
+        </div>
+        {% else %}
 
         <div>
             <label class="block text-sm font-semibold text-slate-700 mb-1.5">Student ID</label>
@@ -26,11 +77,19 @@
             <p class="text-xs text-red-600 mt-1">{{ error }}</p>
             {% endfor %}
         </div>
+        {% endif %}
 
         <div class="pt-2">
-            <button type="submit" class="px-6 py-3 rounded-lg bg-rose-600 text-white font-bold hover:bg-rose-700 transition">
-                Release Seat
+            <button type="submit" name="action" value="{% if preview %}confirm{% else %}preview{% endif %}"
+                    class="px-6 py-3 rounded-lg text-white font-bold transition {% if preview %}bg-rose-600 hover:bg-rose-700{% else %}bg-indigo-600 hover:bg-indigo-700{% endif %}">
+                {% if preview %}Confirm &amp; Release Seat{% else %}Preview Release{% endif %}
             </button>
+            {% if preview %}
+            <button type="submit" name="action" value="edit"
+                    class="ml-3 px-6 py-3 rounded-lg bg-slate-100 text-slate-700 font-semibold hover:bg-slate-200 transition">
+                Edit Selection
+            </button>
+            {% endif %}
             <a href="{% url 'dashboard:home' %}" class="ml-3 px-6 py-3 rounded-lg bg-slate-100 text-slate-700 font-semibold hover:bg-slate-200 transition">Cancel</a>
         </div>
     </form>
