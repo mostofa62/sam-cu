@@ -5,7 +5,10 @@ from django.urls import reverse
 from accounts.models import User
 from allocations.models import (OrderChoices, SeatAssignment, SeatMaintenance,
                                 SeatReleaseReason)
+from allocations.importer import import_allocations
+from allocations.models import AllocationCall, HallAllocation
 from halls.models import Block, Floor, Hall, Room, Seat
+from students.models import Student
 
 
 def make_hall(name='Hall X', code='HX'):
@@ -510,3 +513,415 @@ class RevokeScopingTests(TestCase):
         with self.assertRaises(ValidationError):
             revoke_seat('STU-Y', halls=Hall.objects.filter(pk=self.hall_x.pk), reason=self.reason)
         self.assertTrue(SeatAssignment.objects.filter(student_id='STU-Y', is_active=True).exists())
+
+def csv_content(rows, header='call_id,hall_code,student_id,merit_pos'):
+    from io import StringIO
+    return StringIO(header + '\n' + '\n'.join(rows) + '\n')
+
+
+class ImportAllocationsTests(TestCase):
+    def setUp(self):
+        self.hall_x, _ = make_hall('Hall X', 'HX')
+        self.hall_y, _ = make_hall('Hall Y', 'HY')
+        self.manager_x = User.objects.create_user(email='x@example.com', phone='+8801700000001', password='pw')
+        self.manager_x.managed_hall = self.hall_x
+        self.manager_x.save()
+        self.superuser = User.objects.create_superuser(email='root@example.com', phone='+8801700000000', password='pw')
+
+    def test_import_creates_call_rows_and_activates_first_ever(self):
+        summary = import_allocations(csv_content([
+            '202601,HX,STU-1,10',
+            '202601,HX,STU-2,25',
+        ]), acting_user=self.superuser)
+        self.assertEqual(summary['created'], 2)
+        self.assertTrue(summary['auto_activated'])
+        call = AllocationCall.objects.get(call_id='202601')
+        self.assertTrue(call.is_active)
+        self.assertEqual(call.year, 2026)
+        self.assertEqual(call.sequence, 1)
+        self.assertEqual(call.allotments.count(), 2)
+        allotment = HallAllocation.objects.get(call=call, student_id='STU-1')
+        self.assertEqual(allotment.hall_code, 'HX')
+        self.assertEqual(allotment.merit_pos, 10)
+
+    def test_later_imports_do_not_activate_automatically(self):
+        # Only the first-ever import auto-activates; afterwards activation is a
+        # deliberate admin decision so a wrong file can't become the source.
+        import_allocations(csv_content(['202601,HX,STU-1,10']), acting_user=self.superuser)
+        summary = import_allocations(csv_content(['202602,HY,STU-2,5']), acting_user=self.superuser)
+        self.assertFalse(summary['auto_activated'])
+        self.assertTrue(AllocationCall.objects.get(call_id='202601').is_active,
+                        'previous active call must stay active')
+        self.assertFalse(AllocationCall.objects.get(call_id='202602').is_active,
+                         'newly imported call must stay inactive')
+        self.assertEqual(AllocationCall.objects.filter(is_active=True).count(), 1)
+
+    def test_reimport_same_call_updates_rows_and_stays_active(self):
+        import_allocations(csv_content(['202601,HX,STU-1,10', '202601,HX,STU-2,20']))
+        summary = import_allocations(csv_content(['202601,HX,STU-1,99', '202601,HY,STU-3,7']))
+        self.assertEqual(summary['created'], 1)
+        self.assertEqual(summary['updated'], 1)
+        self.assertEqual(HallAllocation.objects.filter(call__call_id='202601').count(), 3)
+        self.assertTrue(AllocationCall.objects.get(call_id='202601').is_active)
+
+    def test_manager_cannot_import_other_halls_code(self):
+        with self.assertRaises(ValidationError) as ctx:
+            import_allocations(csv_content(['202601,HY,STU-1,10']), acting_user=self.manager_x)
+        self.assertIn('manage a different hall', str(ctx.exception.messages))
+        self.assertFalse(AllocationCall.objects.exists())
+        self.assertFalse(HallAllocation.objects.exists())
+
+    def test_manager_can_import_own_hall_code(self):
+        summary = import_allocations(csv_content(['202601,HX,STU-1,4']), acting_user=self.manager_x)
+        self.assertEqual(summary['created'], 1)
+
+    def test_unknown_hall_code_rejected_atomically(self):
+        with self.assertRaises(ValidationError) as ctx:
+            import_allocations(csv_content(['202601,HX,STU-1,10', '202601,NOPE,STU-2,20']))
+        self.assertTrue(any('no hall exists' in m for m in ctx.exception.messages))
+        self.assertFalse(HallAllocation.objects.exists())
+
+    def test_mixed_call_ids_rejected(self):
+        with self.assertRaises(ValidationError) as ctx:
+            import_allocations(csv_content(['202601,HX,STU-1,10', '202602,HX,STU-2,20']))
+        self.assertTrue(any('same call_id' in m for m in ctx.exception.messages))
+
+    def test_bad_merit_and_duplicate_student_rejected(self):
+        with self.assertRaises(ValidationError) as ctx:
+            import_allocations(csv_content([
+                '202601,HX,STU-1,abc',
+                '202601,HX,STU-2,5',
+                '202601,HX,STU-2,6',
+            ]))
+        messages = ' | '.join(ctx.exception.messages)
+        self.assertIn('must be a whole number', messages)
+        self.assertIn('duplicate student', messages)
+        self.assertFalse(HallAllocation.objects.exists())
+
+    def test_bad_call_id_format_rejected(self):
+        for bad in ('26A01', '2026', '2026111'):
+            with self.assertRaises(ValidationError):
+                import_allocations(csv_content([f'{bad},HX,STU-1,10']))
+
+    def test_student_already_in_previous_call_rejected_with_full_reference(self):
+        import_allocations(csv_content(['202601,HX,STU-1,10']))
+        with self.assertRaises(ValidationError) as ctx:
+            import_allocations(csv_content(['202602,HY,NEW-1,5', '202602,HY,STU-1,99']))
+        joined = '\n'.join(ctx.exception.messages)
+        # Summary line naming every duplicated ID...
+        self.assertIn('duplicated student ID from previous call(s): STU-1', joined)
+        # ...plus per-row reference to the earlier call, hall and merit position.
+        self.assertIn('Row 3: student STU-1 is already allotted in call 202601', joined)
+        self.assertIn('hall HX, merit position 10', joined)
+        self.assertIn('cannot appear in more than one call', joined)
+        # All-or-nothing: nothing from the rejected file was written.
+        self.assertFalse(HallAllocation.objects.filter(student_id='NEW-1').exists())
+        self.assertFalse(AllocationCall.objects.filter(call_id='202602').exists())
+        self.assertTrue(AllocationCall.objects.get(call_id='202601').is_active)
+
+    def test_same_call_reimport_still_updates(self):
+        import_allocations(csv_content(['202601,HX,STU-1,10', '202601,HX,STU-2,20']))
+        summary = import_allocations(csv_content(['202601,HX,STU-1,42']))
+        self.assertEqual(summary['updated'], 1)
+        self.assertEqual(summary['created'], 0)
+        self.assertEqual(HallAllocation.objects.get(student_id='STU-1').merit_pos, 42)
+
+    def test_missing_headers_rejected(self):
+        with self.assertRaises(ValidationError) as ctx:
+            import_allocations(csv_content(['202601,HX,STU-1,10'],
+                                           header='call,hall,sid,pos'))
+        self.assertIn('Missing required column(s)', str(ctx.exception.messages))
+
+
+class AssignAllotmentGateTests(TestCase):
+    """Seat assignment must respect the active merit-list call."""
+
+    def setUp(self):
+        self.hall_x, seats_x = make_hall('Hall X', 'HX')
+        self.hall_y, _ = make_hall('Hall Y', 'HY')
+        self.user = User.objects.create_user(email='a@example.com', phone='+8801700000001', password='pw')
+        self.user.managed_hall = self.hall_x
+        self.user.save()
+        self.client.login(email='a@example.com', password='pw')
+        self.seat_x = seats_x[0]
+        self.payload = {
+            'student_id': 'STU-A',
+            'hall': self.hall_x.id,
+            'room': self.seat_x.room_id,
+            'seat': self.seat_x.id,
+        }
+
+    def activate(self, rows=None):
+        if rows is None:
+            rows = [f'202601,HX,STU-A,12', f'202601,HY,STU-B,30']
+        import_allocations(csv_content(rows), acting_user=None)
+
+    def test_no_active_call_allows_assignment_as_before(self):
+        resp = self.client.post(reverse('allocations:assign'),
+                                {**self.payload, 'action': 'confirm'})
+        self.assertEqual(resp.status_code, 302)
+        self.assertTrue(SeatAssignment.objects.filter(student_id='STU-A').exists())
+
+    def test_student_with_matching_allotment_can_be_assigned(self):
+        self.activate()
+        resp = self.client.post(reverse('allocations:assign'),
+                                {**self.payload, 'action': 'confirm'})
+        self.assertEqual(resp.status_code, 302)
+        self.assertTrue(SeatAssignment.objects.filter(student_id='STU-A').exists())
+
+    def test_student_without_any_allotment_is_blocked(self):
+        self.activate()
+        payload = {**self.payload, 'student_id': 'STU-Z'}
+        resp = self.client.post(reverse('allocations:assign'), {**payload, 'action': 'confirm'})
+        self.assertEqual(resp.status_code, 200)
+        self.assertContains(resp, 'has no hall allotment in the active allocation call 202601')
+        self.assertFalse(SeatAssignment.objects.filter(student_id='STU-Z').exists())
+
+    def test_student_allotted_to_another_hall_is_blocked(self):
+        self.activate()
+        payload = {**self.payload, 'student_id': 'STU-B'}
+        resp = self.client.post(reverse('allocations:assign'), {**payload, 'action': 'confirm'})
+        self.assertEqual(resp.status_code, 200)
+        self.assertContains(resp, 'was allotted Hall Y (HY)')
+        self.assertContains(resp, '(merit position 30, call 202601)')
+        self.assertFalse(SeatAssignment.objects.filter(student_id='STU-B').exists())
+
+    def test_preview_shows_allotment_badge_for_allotted_student(self):
+        self.activate()
+        resp = self.client.post(reverse('allocations:assign'), {**self.payload, 'action': 'preview'})
+        self.assertContains(resp, 'Merit-list check passed')
+        self.assertContains(resp, 'merit position <span class="font-semibold">12</span>')
+
+    def test_service_layer_blocks_too(self):
+        from allocations.services import assign_seat
+        self.activate()
+        with self.assertRaises(ValidationError) as ctx:
+            assign_seat(seat=self.hall_y.seats.first(), student_id='STU-A')
+        self.assertIn('was allotted Hall X (HX)', str(ctx.exception.messages))
+
+
+class ImportPageTests(TestCase):
+    """Importing is an administrator-only action; managers are redirected."""
+
+    def setUp(self):
+        self.hall_x, _ = make_hall('Hall X', 'HX')
+        self.manager = User.objects.create_user(email='x@example.com', phone='+8801700000001', password='pw')
+        self.manager.managed_hall = self.hall_x
+        self.manager.save()
+        self.superuser = User.objects.create_superuser(email='root@example.com', phone='+8801700000000', password='pw')
+
+    def test_import_page_renders_for_superuser(self):
+        self.client.login(email='root@example.com', password='pw')
+        resp = self.client.get(reverse('allocations:import'))
+        self.assertEqual(resp.status_code, 200)
+        self.assertContains(resp, 'Import Merit-List Allocations')
+        self.assertContains(resp, 'call_id,hall_code,student_id,merit_pos')
+
+    def test_manager_cannot_open_import_page(self):
+        self.client.login(email='x@example.com', password='pw')
+        resp = self.client.get(reverse('allocations:import'))
+        # Redirected to the read-only allotment list instead of the uploader.
+        self.assertEqual(resp.status_code, 302)
+        self.assertIn(str(reverse('allocations:allotments')), resp['Location'])
+
+    def test_manager_cannot_upload_even_by_posting_directly(self):
+        from django.core.files.uploadedfile import SimpleUploadedFile
+        self.client.login(email='x@example.com', password='pw')
+        upload = SimpleUploadedFile('alloc.csv', b'call_id,hall_code,student_id,merit_pos\n202607,HX,STU-W,3\n')
+        resp = self.client.post(reverse('allocations:import'), {'csv_file': upload})
+        self.assertEqual(resp.status_code, 302)
+        self.assertFalse(AllocationCall.objects.exists())
+        self.assertFalse(HallAllocation.objects.exists())
+
+    def test_import_upload_via_web_sets_active_call(self):
+        from django.core.files.uploadedfile import SimpleUploadedFile
+        self.client.login(email='root@example.com', password='pw')
+        upload = SimpleUploadedFile('alloc.csv', b'call_id,hall_code,student_id,merit_pos\n202607,HX,STU-W,3\n')
+        resp = self.client.post(reverse('allocations:import'), {'csv_file': upload})
+        self.assertEqual(resp.status_code, 200)
+        self.assertTrue(AllocationCall.objects.get(call_id='202607').is_active)
+        self.assertContains(resp, 'activated automatically as the first allocation call')
+
+    def test_subsequent_import_left_inactive_with_hint(self):
+        from django.core.files.uploadedfile import SimpleUploadedFile
+        import_allocations(csv_content(['202601,HX,STU-1,10']), acting_user=self.superuser)
+        self.client.login(email='root@example.com', password='pw')
+        upload = SimpleUploadedFile('alloc.csv', b'call_id,hall_code,student_id,merit_pos\n202608,HX,STU-V,9\n')
+        resp = self.client.post(reverse('allocations:import'), {'csv_file': upload})
+        self.assertEqual(resp.status_code, 200)
+        self.assertContains(resp, 'left INACTIVE')
+        self.assertFalse(AllocationCall.objects.get(call_id='202608').is_active,
+                         'later imports must not activate themselves')
+        self.assertTrue(AllocationCall.objects.get(call_id='202601').is_active)
+        # The inactive call offers the manual "Set Active" action.
+        self.assertContains(resp, 'Set Active')
+
+    def test_import_unknown_hall_code_rejected(self):
+        from django.core.files.uploadedfile import SimpleUploadedFile
+        self.client.login(email='root@example.com', password='pw')
+        upload = SimpleUploadedFile('alloc.csv', b'call_id,hall_code,student_id,merit_pos\n202607,NOPE,STU-W,3\n')
+        resp = self.client.post(reverse('allocations:import'), {'csv_file': upload})
+        self.assertEqual(resp.status_code, 200)
+        self.assertContains(resp, 'no hall exists with code')
+        self.assertFalse(AllocationCall.objects.exists())
+
+    def test_admin_can_manually_activate_an_existing_call(self):
+        # Under the new policy the second import stays inactive; only an
+        # explicit "Set Active" flips it after admin review.
+        import_allocations(csv_content(['202601,HX,STU-1,10']), acting_user=self.superuser)
+        import_allocations(csv_content(['202602,HX,STU-2,20']), acting_user=self.superuser)
+        self.assertTrue(AllocationCall.objects.get(call_id='202601').is_active)
+        self.assertFalse(AllocationCall.objects.get(call_id='202602').is_active)
+
+        self.client.login(email='root@example.com', password='pw')
+        resp = self.client.post(reverse('allocations:import'), {
+            'action': 'activate_call',
+            'call_id': '202602',
+        })
+        self.assertEqual(resp.status_code, 200)
+        self.assertTrue(AllocationCall.objects.get(call_id='202602').is_active)
+        self.assertFalse(AllocationCall.objects.get(call_id='202601').is_active,
+                         'only one call can be active at a time')
+        self.assertContains(resp, 'is now the active allocation call')
+
+    def test_activation_with_unknown_call_shows_error(self):
+        self.client.login(email='root@example.com', password='pw')
+        resp = self.client.post(reverse('allocations:import'), {
+            'action': 'activate_call',
+            'call_id': '209912',
+        })
+        self.assertEqual(resp.status_code, 200)
+        self.assertContains(resp, 'No allocation call &quot;209912&quot; exists.')
+        self.assertIsNone(AllocationCall.active())
+
+
+class AllotmentListTests(TestCase):
+    """Managers browse their hall's allotments call-wise; superusers see all."""
+
+    def setUp(self):
+        self.hall_x, _ = make_hall('Hall X', 'HX')
+        self.hall_y, _ = make_hall('Hall Y', 'HY')
+        self.manager_x = User.objects.create_user(email='x@example.com', phone='+8801700000001', password='pw')
+        self.manager_x.managed_hall = self.hall_x
+        self.manager_x.save()
+        Student.objects.create(student_id='STU-1', name_en='Alice X')
+        Student.objects.create(student_id='STU-2', name_en='Bob Y')
+        Student.objects.create(student_id='STU-3', name_en='Carol X')
+        # A student can exist in only ONE call, so each import uses fresh IDs.
+        import_allocations(csv_content([
+            '202601,HX,STU-1,10',
+            '202601,HY,STU-2,20',
+        ]))
+        import_allocations(csv_content(['202602,HX,STU-3,5']))
+
+    def test_manager_sees_only_own_halls_rows_call_wise(self):
+        self.client.login(email='x@example.com', password='pw')
+        resp = self.client.get(reverse('allocations:allotments'))
+        self.assertEqual(resp.status_code, 200)
+        # Defaults to the ACTIVE call (202601 — later imports stay inactive
+        # until an admin activates them) and only Hall X rows appear.
+        self.assertEqual(resp.context['selected_call'].call_id, '202601')
+        self.assertContains(resp, 'STU-1')
+        self.assertContains(resp, 'Alice X')
+        self.assertNotContains(resp, 'STU-2')
+        self.assertNotContains(resp, 'Bob Y')
+        self.assertNotContains(resp, 'STU-3')
+
+    def test_manager_can_select_another_call(self):
+        self.client.login(email='x@example.com', password='pw')
+        resp = self.client.get(f"{reverse('allocations:allotments')}?call=202601")
+        self.assertEqual(resp.context['selected_call'].call_id, '202601')
+        self.assertContains(resp, '10')  # merit position of STU-1 in call 202601
+        self.assertNotContains(resp, '<td class="px-5 py-2.5 font-mono">HY</td>')
+
+    def test_superuser_sees_every_call_and_hall(self):
+        superuser = User.objects.create_superuser(email='root@example.com', phone='+8801700000000', password='pw')
+        self.client.login(email='root@example.com', password='pw')
+        resp = self.client.get(f"{reverse('allocations:allotments')}?call=202601")
+        self.assertEqual(len(resp.context['calls']), 2)
+        self.assertContains(resp, 'STU-1')
+        self.assertContains(resp, 'STU-2')
+
+    def test_plain_user_without_hall_sees_no_data(self):
+        plain = User.objects.create_user(email='p@example.com', phone='+8801700000003', password='pw')
+        self.client.login(email='p@example.com', password='pw')
+        resp = self.client.get(reverse('allocations:allotments'))
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(list(resp.context['calls']), [])
+        self.assertEqual(list(resp.context['allotments']), [])
+
+    def test_unknown_call_id_falls_back_to_default(self):
+        self.client.login(email='x@example.com', password='pw')
+        resp = self.client.get(f"{reverse('allocations:allotments')}?call=199901")
+        self.assertIsNotNone(resp.context['selected_call'])
+        self.assertEqual(resp.context['selected_call'].call_id, '202601')
+
+
+class DeleteAllotmentsTests(TestCase):
+    """Admins remove mistaken rows (single or bulk) — managers never can."""
+
+    def setUp(self):
+        self.hall_x, _ = make_hall('Hall X', 'HX')
+        self.hall_y, _ = make_hall('Hall Y', 'HY')
+        self.manager = User.objects.create_user(email='x@example.com', phone='+8801700000001', password='pw')
+        self.manager.managed_hall = self.hall_x
+        self.manager.save()
+        self.superuser = User.objects.create_superuser(email='root@example.com', phone='+8801700000000', password='pw')
+        import_allocations(csv_content([
+            '202601,HX,STU-1,10',
+            '202601,HY,STU-2,20',
+            '202601,HX,STU-3,30',
+        ]), acting_user=self.superuser)
+        self.pks = list(HallAllocation.objects.order_by('pk').values_list('pk', flat=True))
+
+    def delete_url(self):
+        return reverse('allocations:delete_allotments')
+
+    def test_admin_deletes_single_row_with_reference_message(self):
+        self.client.login(email='root@example.com', password='pw')
+        resp = self.client.post(self.delete_url(), {
+            'ids': [str(self.pks[0])],
+            'next_call': '202601',
+        })
+        self.assertEqual(resp.status_code, 302)
+        self.assertFalse(HallAllocation.objects.filter(pk=self.pks[0]).exists())
+        follow = self.client.get(resp['Location'])
+        self.assertContains(follow, 'Deleted 1 allotment row(s): STU-1 (call 202601, hall HX, merit 10)')
+
+    def test_admin_deletes_multiple_checked_rows_as_repeated_keys(self):
+        # Regression: real checkbox groups POST repeated keys (ids=3&ids=7).
+        # get() used to keep only the LAST value, so bulk delete dropped all
+        # but one row — getlist() must honour the whole selection.
+        self.client.login(email='root@example.com', password='pw')
+        resp = self.client.post(self.delete_url(), {
+            'ids': [str(self.pks[0]), str(self.pks[1]), str(self.pks[2])],
+            'next_call': '202601',
+        })
+        self.assertEqual(resp.status_code, 302)
+        self.assertEqual(HallAllocation.objects.count(), 0)
+        follow = self.client.get(resp['Location'])
+        self.assertContains(follow, 'Deleted 3 allotment row(s)')
+
+    def test_manager_cannot_delete_rows(self):
+        self.client.login(email='x@example.com', password='pw')
+        resp = self.client.post(self.delete_url(), {'ids': str(self.pks[0])})
+        self.assertEqual(resp.status_code, 302)
+        self.assertEqual(HallAllocation.objects.count(), 3)
+        follow = self.client.get(reverse('allocations:allotments'))
+        self.assertContains(follow, 'Only administrators can delete allotment rows.')
+
+    def test_delete_without_selection_shows_error(self):
+        self.client.login(email='root@example.com', password='pw')
+        resp = self.client.post(self.delete_url(), {})
+        self.assertEqual(resp.status_code, 302)
+        self.assertEqual(HallAllocation.objects.count(), 3)
+
+    def test_delete_redirects_back_to_selected_call(self):
+        import_allocations(csv_content(['202602,HY,STU-9,7']), acting_user=self.superuser)
+        self.client.login(email='root@example.com', password='pw')
+        row_202602 = HallAllocation.objects.get(student_id='STU-9')
+        resp = self.client.post(self.delete_url(), {
+            'ids': str(row_202602.pk),
+            'next_call': '202602',
+        })
+        self.assertIn(f"call=202602", resp['Location'])

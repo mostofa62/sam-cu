@@ -1,22 +1,33 @@
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.core.exceptions import ValidationError
+from django.db import transaction
+from django.db.models import Count, Q
 from django.http import JsonResponse
-from django.shortcuts import get_object_or_404, redirect, render
+from django.shortcuts import get_object_or_404, redirect, render, reverse
 from django.utils import timezone
 
 from halls.models import Room, Seat
 from students.models import Student
 
-from .forms import AssignForm, RevokeForm
-from .models import (OrderChoices, SeatAssignment, SeatAssignmentLog, SeatMaintenance,
-                     SeatReleaseReason)
+from .forms import AssignForm, ImportAllocationsForm, RevokeForm
+from .importer import import_allocations
+from .models import (AllocationCall, HallAllocation, OrderChoices, SeatAssignment,
+                     SeatAssignmentLog, SeatMaintenance, SeatReleaseReason)
 from .services import assign_seat, revoke_seat, validate_seat_assignable
 
 
 def _student_record(student_id):
     """Master-data record from the students table for the confirmation preview."""
     return Student.objects.filter(student_id=student_id).first()
+
+
+def _allotment_record(student_id):
+    """Merit-list allotment of the student in the currently active call (or None)."""
+    active_call = AllocationCall.active()
+    if active_call is None:
+        return None
+    return HallAllocation.objects.filter(call=active_call, student_id=student_id).first()
 
 
 def _seat_snapshot(seat):
@@ -76,12 +87,14 @@ def assign(request):
                 # Preview step — run the same conflict checks the real assignment
                 # will run, then show student + hall/seat details for confirmation.
                 try:
-                    validate_seat_assignable(seat, student_id, acting_user=request.user)
+                    allotment = validate_seat_assignable(seat, student_id, acting_user=request.user)
                 except ValidationError as e:
                     form.add_error('seat', e)
                 else:
                     preview = {
                         'student': _student_record(student_id),
+                        'allotment': allotment,
+                        'active_call': AllocationCall.active(),
                         'snapshot': _seat_snapshot(seat),
                     }
     else:
@@ -273,3 +286,174 @@ def room_seats_json(request):
             'status': status,
         })
     return JsonResponse({'seats': data})
+
+
+@login_required
+def import_allocations_view(request):
+    """(Superusers only) Upload a merit-list allocation CSV and manage calls.
+
+    The imported call becomes the single active one. Administrators can also
+    re-activate any previously imported call by hand.
+    """
+    if not request.user.is_superuser:
+        messages.info(
+            request,
+            'Allocation files are imported by administrators only — showing your hall allotments instead.',
+        )
+        return redirect('allocations:allotments')
+
+    form = ImportAllocationsForm()
+    summary = None
+
+    if request.method == 'POST':
+        action = request.POST.get('action', 'import')
+        if action == 'activate_call':
+            _activate_call(request)
+        else:
+            form = ImportAllocationsForm(request.POST, request.FILES)
+            if form.is_valid():
+                try:
+                    summary = import_allocations(
+                        request.FILES['csv_file'],
+                        acting_user=request.user,
+                    )
+                    call_label = f"Call {summary['call_id']}"
+                    if summary.get('auto_activated'):
+                        messages.success(
+                            request,
+                            f'{call_label} imported and activated automatically as the first allocation call.',
+                        )
+                    elif summary.get('reused'):
+                        messages.success(
+                            request,
+                            f'{call_label} re-imported — rows updated; activation status unchanged.',
+                        )
+                    else:
+                        messages.warning(
+                            request,
+                            f'{call_label} imported but left INACTIVE — review it, then press '
+                            f'"Set Active" to make it the allocation source for assignments.',
+                        )
+                    form = ImportAllocationsForm()
+                except ValidationError as exc:
+                    for message in exc.messages:
+                        form.add_error(None, message)
+
+    context = {
+        'page_title': 'Import Allocations',
+        'form': form,
+        'summary': summary,
+        'active_call': AllocationCall.active(),
+        'calls': AllocationCall.objects.all()[:10],
+    }
+    return render(request, 'allocations/import.html', context)
+
+
+def _activate_call(request):
+    """Manually make an existing call the single active one (superuser action)."""
+    call_id = (request.POST.get('call_id') or '').strip()
+    try:
+        call = AllocationCall.objects.get(call_id=call_id)
+    except AllocationCall.DoesNotExist:
+        messages.error(request, f'No allocation call "{call_id}" exists.')
+        return
+    with transaction.atomic():
+        AllocationCall.objects.exclude(pk=call.pk).filter(is_active=True).update(is_active=False)
+        if not call.is_active:
+            call.is_active = True
+            call.save(update_fields=['is_active'])
+    messages.success(request, f'Call {call.call_id} is now the active allocation call.')
+
+
+@login_required
+def allotments(request):
+    """Read-only, call-wise merit-list allotments scoped to the viewer's halls.
+
+    Hall managers see only rows allotted to the hall they manage; superusers
+    see every hall. A call is selectable via ?call=YYYYNN and defaults to the
+    active one.
+    """
+    visible_codes = list(request.user.visible_halls().exclude(code__isnull=True)
+                         .values_list('code', flat=True))
+    scope_q = Q(allotments__hall_code__in=visible_codes)
+    calls = (AllocationCall.objects
+             .annotate(rows_in_scope=Count('allotments', filter=scope_q))
+             .order_by('-year', '-sequence'))
+    if not request.user.is_superuser:
+        calls = calls.filter(rows_in_scope__gt=0)
+
+    selected = None
+    raw = request.GET.get('call')
+    if raw:
+        selected = calls.filter(call_id=raw).first()
+    if selected is None:
+        selected = calls.filter(is_active=True).first() or calls.first()
+
+    allotment_rows = []
+    if selected is not None:
+        allotment_rows = list(
+            HallAllocation.objects
+            .filter(call=selected, hall_code__in=visible_codes)
+            .select_related('call')
+            .order_by('merit_pos')
+        )
+        names = dict(Student.objects.filter(
+            student_id__in=[a.student_id for a in allotment_rows],
+        ).values_list('student_id', 'name_en'))
+        for allotment in allotment_rows:
+            allotment.student_name = names.get(allotment.student_id)
+
+    context = {
+        'page_title': 'Hall Allotments',
+        'calls': calls,
+        'selected_call': selected,
+        'allotments': allotment_rows,
+        'active_call': AllocationCall.active(),
+    }
+    return render(request, 'allocations/allotments.html', context)
+
+
+@login_required
+def delete_allotments(request):
+    """(Superusers only) Remove mistakenly imported allotment row(s).
+
+    Expects a POST with ``ids`` (comma-separated HallAllocation pks). The UI
+    asks for an explicit SweetAlert confirmation before submitting, and the
+    success message repeats exactly what was removed.
+    """
+    if not request.user.is_superuser:
+        messages.error(request, 'Only administrators can delete allotment rows.')
+        return redirect('allocations:allotments')
+    if request.method != 'POST':
+        return redirect('allocations:allotments')
+
+    # Checkboxes arrive as REPEATED keys (ids=3&ids=7&ids=9) — get() would
+    # return only the last one and silently drop the rest of the selection.
+    # Accept both repeated keys and comma-joined strings.
+    parsed = set()
+    for value in request.POST.getlist('ids'):
+        for part in str(value).split(','):
+            part = part.strip()
+            if part.isdigit():
+                parsed.add(int(part))
+    ids = sorted(parsed)
+    if not ids:
+        messages.error(request, 'No allotment rows were selected for deletion.')
+        return redirect('allocations:allotments')
+
+    rows = list(
+        HallAllocation.objects.filter(pk__in=ids)
+        .select_related('call')
+        .order_by('call__call_id', 'merit_pos')
+    )
+    references = [f'{row.student_id} (call {row.call.call_id}, hall {row.hall_code}, merit {row.merit_pos})'
+                  for row in rows]
+    shown = ', '.join(references[:5]) + ('…' if len(references) > 5 else '')
+    for row in rows:
+        row.delete()
+    messages.success(request, f'Deleted {len(rows)} allotment row(s): {shown}')
+
+    next_call = (request.POST.get('next_call') or '').strip()
+    if AllocationCall.CALL_ID_REGEX.match(next_call):
+        return redirect(f"{reverse('allocations:allotments')}?call={next_call}")
+    return redirect('allocations:allotments')
