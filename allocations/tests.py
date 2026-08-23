@@ -139,6 +139,7 @@ class AssignScopingTests(TestCase):
             'hall': self.hall_x.id,
             'room': seat_x.room_id,
             'seat': seat_x.id,
+            'action': 'confirm',
         })
         self.assertEqual(resp.status_code, 302)
         self.assertTrue(SeatAssignment.objects.filter(student_id='STU-SINGLE').exists())
@@ -162,9 +163,81 @@ class AssignScopingTests(TestCase):
             'hall': self.hall_x.id,
             'room': seat_x.room_id,
             'seat': seat_x.id,
+            'action': 'confirm',
         })
         self.assertEqual(resp.status_code, 302)
         self.assertTrue(SeatAssignment.objects.filter(student_id='STU-1', seat__hall=self.hall_x).exists())
+
+    def test_assign_preview_does_not_create_assignment(self):
+        # Step 1 of the flow: submitting without action=confirm only previews —
+        # student + hall/seat details are shown, but nothing is written.
+        from students.models import Student
+        Student.objects.create(student_id='2101CSE001', name_en='Preview Student',
+                               session='2021-22', gender='male', bloodgroup='B+')
+        seat_x = Seat.objects.filter(hall=self.hall_x).first()
+        resp = self.client.post(reverse('allocations:assign'), {
+            'student_id': '2101CSE001',
+            'hall': self.hall_x.id,
+            'room': seat_x.room_id,
+            'seat': seat_x.id,
+            'action': 'preview',
+        })
+        self.assertEqual(resp.status_code, 200)
+        self.assertFalse(SeatAssignment.objects.filter(student_id='2101CSE001').exists())
+        # Student master data is surfaced in the preview.
+        self.assertContains(resp, 'Preview Student')
+        self.assertContains(resp, 'Confirm &amp; Assign Seat')
+        preview = resp.context['preview']
+        self.assertEqual(preview['snapshot']['next_order'], OrderChoices.PRIMARY)
+
+    def test_assign_confirm_after_preview_creates_secondary(self):
+        # Full two-step flow: preview first (no write), then confirm writes as
+        # secondary when the seat already has a primary occupant.
+        seat_x = Seat.objects.filter(hall=self.hall_x).first()
+        SeatAssignment.objects.create(seat=seat_x, student_id='STU-FIRST',
+                                      order=OrderChoices.PRIMARY, is_active=True)
+        payload = {
+            'student_id': 'STU-SECOND',
+            'hall': self.hall_x.id,
+            'room': seat_x.room_id,
+            'seat': seat_x.id,
+        }
+        resp = self.client.post(reverse('allocations:assign'), {**payload, 'action': 'preview'})
+        self.assertEqual(resp.status_code, 200)
+        self.assertFalse(SeatAssignment.objects.filter(student_id='STU-SECOND').exists())
+        self.assertContains(resp, 'Will join as secondary')
+
+        resp = self.client.post(reverse('allocations:assign'), {**payload, 'action': 'confirm'})
+        self.assertEqual(resp.status_code, 302)
+        assignment = SeatAssignment.objects.get(student_id='STU-SECOND')
+        self.assertEqual(assignment.order, OrderChoices.SECONDARY)
+
+    def test_assign_edit_selection_preserves_state(self):
+        # "Edit Selection" re-renders the bound form — every previous choice
+        # (student ID, hall/room/seat pick) must survive the round-trip.
+        seat_x = Seat.objects.filter(hall=self.hall_x).first()
+        payload = {
+            'student_id': 'STU-EDIT',
+            'hall': self.hall_x.id,
+            'room': seat_x.room_id,
+            'seat': seat_x.id,
+        }
+        resp = self.client.post(reverse('allocations:assign'), {**payload, 'action': 'preview'})
+        self.assertContains(resp, 'Confirm &amp; Assign Seat')
+
+        resp = self.client.post(reverse('allocations:assign'), {**payload, 'action': 'edit'})
+        self.assertEqual(resp.status_code, 200)
+        self.assertIsNone(resp.context['preview'])
+        self.assertFalse(SeatAssignment.objects.filter(student_id='STU-EDIT').exists())
+        form = resp.context['form']
+        self.assertEqual(form.data['student_id'], 'STU-EDIT')
+        self.assertEqual(int(form.data['hall']), self.hall_x.id)
+        self.assertEqual(int(form.data['room']), seat_x.room_id)
+        self.assertEqual(int(form.data['seat']), seat_x.id)
+        # The chosen seat must still be a selectable option after re-render.
+        self.assertIn(seat_x, set(form.fields['seat'].queryset))
+        # And it renders as the selected option.
+        self.assertContains(resp, f'<option value="{seat_x.id}" selected>')
 
     def test_assign_student_with_existing_active_seat_renders_error_not_crash(self):
         # Regression: SeatAssignment.full_clean() raises a dict-based ValidationError;
@@ -255,7 +328,9 @@ class AssignmentsScopingTests(TestCase):
         )
         resp = self.client.post(reverse('allocations:revoke_assignment', args=[assignment_y.pk]),
                                 {'reason': self.reason.id})
-        self.assertEqual(resp.status_code, 302)
+        # 404 (not 302): the confirm page must not leak assignments the manager
+        # cannot see, and the foreign-hall assignment stays untouched.
+        self.assertEqual(resp.status_code, 404)
         assignment_y.refresh_from_db()
         self.assertTrue(assignment_y.is_active)
 
@@ -269,6 +344,34 @@ class AssignmentsScopingTests(TestCase):
         assignment_x.refresh_from_db()
         self.assertFalse(assignment_x.is_active)
         self.assertEqual(assignment_x.released_reason, self.reason)
+
+    def test_revoke_assignment_get_shows_confirm_page_without_releasing(self):
+        # GET renders the preview/confirmation page; the release only happens on POST.
+        assignment_x = SeatAssignment.objects.create(
+            seat=self.seats_x[0], student_id='STU-X3', order=OrderChoices.PRIMARY, is_active=True,
+        )
+        resp = self.client.get(reverse('allocations:revoke_assignment', args=[assignment_x.pk]))
+        self.assertEqual(resp.status_code, 200)
+        self.assertContains(resp, 'Confirm Seat Release')
+        self.assertContains(resp, assignment_x.seat.room.compact_label)
+        self.assertContains(resp, assignment_x.seat.seat_number)
+        self.assertTrue(SeatAssignment.objects.filter(pk=assignment_x.pk, is_active=True).exists())
+
+    def test_revoke_assignment_confirm_preselects_reason_from_list(self):
+        # The reason picked on the Active Assignments row arrives as ?reason=
+        # and must be pre-selected in the confirmation dropdown (still changeable).
+        assignment_x = SeatAssignment.objects.create(
+            seat=self.seats_x[0], student_id='STU-X4', order=OrderChoices.PRIMARY, is_active=True,
+        )
+        url = reverse('allocations:revoke_assignment', args=[assignment_x.pk])
+        resp = self.client.get(f'{url}?reason={self.reason.id}')
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(resp.context['initial_reason'], self.reason)
+        self.assertContains(resp, f'<option value="{self.reason.id}" selected>')
+        # An unknown/invalid reason id is ignored — dropdown stays empty.
+        resp = self.client.get(f'{url}?reason=99999')
+        self.assertIsNone(resp.context['initial_reason'])
+        self.assertNotContains(resp, 'selected>')
 
     def test_revoke_assignment_requires_reason(self):
         assignment_x = SeatAssignment.objects.create(
@@ -336,9 +439,48 @@ class RevokeScopingTests(TestCase):
     def test_revoke_own_hall_student_can_still_release(self):
         SeatAssignment.objects.create(seat=Seat.objects.filter(hall=self.hall_x).first(),
                                       student_id='19105036', order=OrderChoices.PRIMARY, is_active=True)
-        resp = self.client.post(reverse('allocations:revoke'), {'student_id': '19105036', 'reason': self.reason.id})
+        resp = self.client.post(reverse('allocations:revoke'),
+                                {'student_id': '19105036', 'reason': self.reason.id, 'action': 'confirm'})
         self.assertEqual(resp.status_code, 302)
         self.assertFalse(SeatAssignment.objects.filter(student_id='19105036', is_active=True).exists())
+
+    def test_revoke_preview_shows_student_and_seat_without_releasing(self):
+        # Step 1 of the flow: submitting without action=confirm previews the
+        # student's master data and current seat — nothing is released yet.
+        from students.models import Student
+        Student.objects.create(student_id='21005036', name_en='Release Preview',
+                               session='2021-22', phone='+8801700000036')
+        assignment = SeatAssignment.objects.create(
+            seat=Seat.objects.filter(hall=self.hall_x).first(),
+            student_id='21005036', order=OrderChoices.PRIMARY, is_active=True,
+        )
+        resp = self.client.post(reverse('allocations:revoke'),
+                                {'student_id': '21005036', 'reason': self.reason.id, 'action': 'preview'})
+        self.assertEqual(resp.status_code, 200)
+        self.assertContains(resp, 'Release Preview')
+        self.assertContains(resp, assignment.seat.full_label)
+        self.assertContains(resp, 'Confirm &amp; Release Seat')
+        self.assertTrue(SeatAssignment.objects.filter(student_id='21005036', is_active=True).exists())
+
+    def test_revoke_edit_selection_preserves_state(self):
+        # "Edit Selection" from the release preview keeps the student ID and
+        # the chosen reason in the form.
+        SeatAssignment.objects.create(
+            seat=Seat.objects.filter(hall=self.hall_x).first(),
+            student_id='21005037', order=OrderChoices.PRIMARY, is_active=True,
+        )
+        payload = {'student_id': '21005037', 'reason': self.reason.id}
+        resp = self.client.post(reverse('allocations:revoke'), {**payload, 'action': 'preview'})
+        self.assertContains(resp, 'Confirm &amp; Release Seat')
+
+        resp = self.client.post(reverse('allocations:revoke'), {**payload, 'action': 'edit'})
+        self.assertEqual(resp.status_code, 200)
+        self.assertIsNone(resp.context['preview'])
+        form = resp.context['form']
+        self.assertEqual(form.data['student_id'], '21005037')
+        self.assertEqual(int(form.data['reason']), self.reason.id)
+        self.assertContains(resp, f'<option value="{self.reason.id}" selected>')
+        self.assertTrue(SeatAssignment.objects.filter(student_id='21005037', is_active=True).exists())
 
     def test_revoke_requires_a_reason(self):
         # Releasing without a reason must re-render the form with an error.
@@ -352,7 +494,8 @@ class RevokeScopingTests(TestCase):
         from allocations.models import SeatAssignmentLog
         assignment = SeatAssignment.objects.create(seat=Seat.objects.filter(hall=self.hall_x).first(),
                                                    student_id='19105038', order=OrderChoices.PRIMARY, is_active=True)
-        resp = self.client.post(reverse('allocations:revoke'), {'student_id': '19105038', 'reason': self.reason.id})
+        resp = self.client.post(reverse('allocations:revoke'),
+                                {'student_id': '19105038', 'reason': self.reason.id, 'action': 'confirm'})
         self.assertEqual(resp.status_code, 302)
         assignment.refresh_from_db()
         self.assertFalse(assignment.is_active)

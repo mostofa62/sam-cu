@@ -33,11 +33,16 @@ def _already_assigned_message(assignment, acting_user=None):
     return message
 
 
-def assign_seat(seat, student_id, performed_by=None, note=''):
-    """Assign a seat to a student. Auto-picks primary/secondary order based on current occupants."""
+def validate_seat_assignable(seat, student_id, acting_user=None):
+    """Raise ValidationError when ``student_id`` cannot currently take ``seat``.
+
+    Pure check — mutates nothing. Shared by the confirmation preview (to surface
+    conflicts before the user commits) and by ``assign_seat`` right before it
+    writes, so a seat that filled up between preview and confirm is still caught.
+    """
     active_assignments = seat.assignments.filter(is_active=True)
 
-    if active_assignments.exists() and active_assignments.filter(student_id=student_id).exists():
+    if active_assignments.filter(student_id=student_id).exists():
         raise ValidationError(f'Student {student_id} already has this seat assigned.')
 
     other = SeatAssignment.objects.filter(
@@ -46,17 +51,19 @@ def assign_seat(seat, student_id, performed_by=None, note=''):
         'seat__room__floor__block', 'seat__hall',
     ).first()
     if other:
-        raise ValidationError(_already_assigned_message(other, acting_user=performed_by))
+        raise ValidationError(_already_assigned_message(other, acting_user=acting_user))
 
     if seat.under_maintenance:
         raise ValidationError('This seat is on hold and cannot be assigned.')
 
-    if active_assignments.filter(student_id=student_id).exists():
-        raise ValidationError(f'Student {student_id} is already assigned to this seat.')
-
     if active_assignments.count() >= 2:
         raise ValidationError('This seat already has two active students. Release one first.')
 
+
+def assign_seat(seat, student_id, performed_by=None, note=''):
+    """Assign a seat to a student. Auto-picks primary/secondary order based on current occupants."""
+    validate_seat_assignable(seat, student_id, acting_user=performed_by)
+    active_assignments = seat.assignments.filter(is_active=True)
     order = OrderChoices.SECONDARY if active_assignments.exists() else OrderChoices.PRIMARY
 
     assignment = SeatAssignment(

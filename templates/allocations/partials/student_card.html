@@ -1,0 +1,72 @@
+<div class="rounded-xl border border-slate-200 overflow-hidden">
+    <div class="px-5 py-3 bg-slate-50 border-b border-slate-200 flex items-center justify-between gap-3">
+        <h4 class="text-sm font-bold text-slate-700 uppercase tracking-wide">Student Details</h4>
+        <span class="text-xs font-mono text-slate-500">{{ student_id }}</span>
+    </div>
+    {% if student %}
+    <div class="p-5 grid grid-cols-2 md:grid-cols-3 gap-x-6 gap-y-4 text-sm">
+        <div>
+            <p class="text-[11px] uppercase tracking-wide text-slate-400 font-semibold">Name (EN)</p>
+            <p class="mt-0.5 text-slate-800 font-medium">{{ student.name_en|default:'—' }}</p>
+        </div>
+        <div>
+            <p class="text-[11px] uppercase tracking-wide text-slate-400 font-semibold">Name (BN)</p>
+            <p class="mt-0.5 text-slate-800 font-medium">{{ student.name_bn|default:'—' }}</p>
+        </div>
+        <div>
+            <p class="text-[11px] uppercase tracking-wide text-slate-400 font-semibold">Session</p>
+            <p class="mt-0.5 text-slate-800 font-medium">{{ student.session|default:'—' }}</p>
+        </div>
+        <div>
+            <p class="text-[11px] uppercase tracking-wide text-slate-400 font-semibold">HSC Group</p>
+            <p class="mt-0.5 text-slate-800 font-medium">{{ student.hsc_group|default:'—' }}</p>
+        </div>
+        <div>
+            <p class="text-[11px] uppercase tracking-wide text-slate-400 font-semibold">Gender</p>
+            <p class="mt-0.5 text-slate-800 font-medium">{{ student.gender|title|default:'—' }}</p>
+        </div>
+        <div>
+            <p class="text-[11px] uppercase tracking-wide text-slate-400 font-semibold">Blood Group</p>
+            <p class="mt-0.5 text-slate-800 font-medium">{{ student.bloodgroup|default:'—' }}</p>
+        </div>
+        <div>
+            <p class="text-[11px] uppercase tracking-wide text-slate-400 font-semibold">Phone</p>
+            <p class="mt-0.5 text-slate-800 font-medium">{{ student.phone|default:'—' }}</p>
+        </div>
+        <div>
+            <p class="text-[11px] uppercase tracking-wide text-slate-400 font-semibold">Father's Name</p>
+            <p class="mt-0.5 text-slate-800 font-medium truncate" title="{{ student.fname_en }}">{{ student.fname_en|default:'—' }}</p>
+        </div>
+        <div>
+            <p class="text-[11px] uppercase tracking-wide text-slate-400 font-semibold">Permanent District</p>
+            <p class="mt-0.5 text-slate-800 font-medium">{{ student.perm_dist|default:'—' }}</p>
+        </div>
+        <div>
+            <p class="text-[11px] uppercase tracking-wide text-slate-400 font-semibold">Admission</p>
+            <p class="mt-0.5 text-slate-800 font-medium">
+                Unit {{ student.adm_unit|default:'—' }} · Quota {{ student.adm_quota|default:'—' }} · Merit {{ student.adm_merit|default:'—' }}
+            </p>
+        </div>
+        <div class="md:col-span-2">
+            <p class="text-[11px] uppercase tracking-wide text-slate-400 font-semibold">Status</p>
+            <p class="mt-0.5">
+                {% if student.student_status == 1 %}
+                <span class="text-[11px] font-bold uppercase bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded-full">Active</span>
+                {% elif student.student_status == 2 %}
+                <span class="text-[11px] font-bold uppercase bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full">Suspended</span>
+                {% elif student.student_status == 3 %}
+                <span class="text-[11px] font-bold uppercase bg-rose-100 text-rose-700 px-2 py-0.5 rounded-full">Cancelled</span>
+                {% elif student.student_status == 4 %}
+                <span class="text-[11px] font-bold uppercase bg-slate-200 text-slate-600 px-2 py-0.5 rounded-full">Graduated</span>
+                {% else %}
+                <span class="text-slate-400">—</span>
+                {% endif %}
+            </p>
+        </div>
+    </div>
+    {% else %}
+    <div class="p-5 text-sm text-amber-800 bg-amber-50 border-t-0">
+        No record was found in the students table for this ID. Double-check the ID before continuing.
+    </div>
+    {% endif %}
+</div>
