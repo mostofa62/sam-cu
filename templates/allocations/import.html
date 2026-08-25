@@ -1,0 +1,157 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="max-w-5xl space-y-8">
+
+    <!-- Active call banner -->
+    <div class="rounded-xl border p-5 flex flex-wrap items-center justify-between gap-4
+        {% if active_call %}bg-emerald-50 border-emerald-200{% else %}bg-amber-50 border-amber-200{% endif %}">
+        <div>
+            <p class="text-[11px] uppercase tracking-wide font-semibold {% if active_call %}text-emerald-600{% else %}text-amber-600{% endif %}">
+                Active Allocation Call
+            </p>
+            <p class="mt-1 text-lg font-bold {% if active_call %}text-emerald-900{% else %}text-amber-900{% endif %}">
+                {% if active_call %}
+                    {{ active_call.call_id }}
+                    <span class="text-sm font-medium text-emerald-700">
+                        — year {{ active_call.year }}, call #{{ active_call.sequence }} · imported {{ active_call.imported_at|date:'d M Y, H:i' }}
+                    </span>
+                {% else %}
+                    No call imported yet
+                {% endif %}
+            </p>
+            <p class="text-xs mt-1 {% if active_call %}text-emerald-700{% else %}text-amber-700{% endif %}">
+                {% if active_call %}
+                    Seat assignment is validated against this call — students can only be assigned to the hall the merit list allotted them.
+                {% else %}
+                    Import a merit-list CSV below to activate a call. Until then, seat assignment is not gated by allotments.
+                {% endif %}
+            </p>
+        </div>
+        <svg class="w-10 h-10 {% if active_call %}text-emerald-400{% else %}text-amber-400{% endif %}" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M9 12h3.75M9 15h3.75M9 18h3.75m3 .75H18a2.25 2.25 0 002.25-2.25V6.108c0-1.135-.845-2.098-1.976-2.192a48.424 48.424 0 00-1.123-.08m-5.801 0c-.065.21-.1.433-.1.664 0 .414.336.75.75.75h4.5a.75.75 0 00.75-.75 2.25 2.25 0 00-.1-.664m-5.8 0A2.251 2.251 0 0113.5 2.25H15c1.012 0 1.867.668 2.15 1.586m-5.8 0c-.376.023-.75.05-1.124.08C9.095 4.01 8.25 4.973 8.25 6.108V8.25m0 0H4.875c-.621 0-1.125.504-1.125 1.125v11.25c0 .621.504 1.125 1.125 1.125h9.75c.621 0 1.125-.504 1.125-1.125V9.375c0-.621-.504-1.125-1.125-1.125H8.25zM6.75 12h.008v.008H6.75V12zm0 3h.008v.008H6.75V15zm0 3h.008v.008H6.75V18z"/>
+        </svg>
+    </div>
+
+    <!-- Upload -->
+    <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-8">
+        <h3 class="text-lg font-bold text-slate-800 mb-1">Import Merit-List Allocations (CSV)</h3>
+        <p class="text-sm text-slate-500 mb-6">
+            Upload the allocation list for a call — e.g. <span class="font-mono">202601</span> for the first call of 2026.
+            Only administrators can import allocation data. The <span class="font-semibold">first-ever</span> import is
+            activated automatically; every later import stays <span class="font-semibold">inactive</span> until you
+            review it and press <span class="font-mono text-xs bg-slate-100 px-1 rounded">Set Active</span> below —
+            so a wrong file can never silently become the assignment source.
+        </p>
+
+        <form method="post" enctype="multipart/form-data" class="space-y-5">
+            {% csrf_token %}
+            {% if form.non_field_errors %}
+            <div class="space-y-2">
+                {% for error in form.non_field_errors %}
+                <div class="px-4 py-3 rounded-lg bg-red-50 text-red-700 text-sm border border-red-200">{{ error }}</div>
+                {% endfor %}
+            </div>
+            {% endif %}
+
+            <div>
+                <label class="block text-sm font-semibold text-slate-700 mb-1.5">CSV File</label>
+                {{ form.csv_file }}
+                {% for error in form.csv_file.errors %}
+                <p class="text-xs text-red-600 mt-1">{{ error }}</p>
+                {% endfor %}
+            </div>
+
+            <div class="rounded-lg bg-slate-50 border border-slate-200 px-4 py-3 text-sm text-slate-600">
+                <p class="font-semibold text-slate-700 mb-1">Expected columns (header row required)</p>
+                <code class="block font-mono text-xs bg-white border border-slate-200 rounded px-3 py-2 text-slate-700 overflow-x-auto">call_id,hall_code,student_id,merit_pos</code>
+                <p class="mt-2 text-xs">Example: <span class="font-mono">202601,HALALA,2101CSE001,124</span> — student <span class="font-mono">2101CSE001</span> allotted ALAOL HALL at merit position 124 in the first call of 2026.</p>
+            </div>
+
+            <button type="submit"
+                    class="px-6 py-3 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white font-bold transition">
+                Validate &amp; Import
+            </button>
+        </form>
+
+        {% if summary %}
+        <div class="mt-6 rounded-xl border border-emerald-200 bg-emerald-50 p-5 text-sm">
+            <p class="font-bold text-emerald-900 mb-2">Import summary — Call {{ summary.call_id }}</p>
+            <ul class="space-y-1 text-emerald-800">
+                <li><span class="font-semibold">{{ summary.total }}</span> row(s) processed</li>
+                <li><span class="font-semibold">{{ summary.created }}</span> new allotment(s) created</li>
+                <li><span class="font-semibold">{{ summary.updated }}</span> existing allotment(s) updated</li>
+                <li>
+                    Activation:
+                    {% if summary.auto_activated %}
+                    <span class="font-semibold">activated automatically — first allocation call in the system</span>
+                    {% else %}
+                    <span class="font-semibold text-amber-700">left inactive — review the rows, then press "Set Active"</span>
+                    {% endif %}
+                </li>
+            </ul>
+        </div>
+        {% endif %}
+    </div>
+
+    <!-- Recent calls -->
+    {% if calls %}
+    <div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+        <div class="px-5 py-3 bg-slate-50 border-b border-slate-200">
+            <h4 class="text-sm font-bold text-slate-700 uppercase tracking-wide">Allocation Calls</h4>
+        </div>
+        <table class="w-full text-sm">
+            <thead>
+                <tr class="text-left text-[11px] uppercase tracking-wide text-slate-400 border-b border-slate-200">
+                    <th class="px-5 py-2.5 font-semibold">Call ID</th>
+                    <th class="px-5 py-2.5 font-semibold">Year</th>
+                    <th class="px-5 py-2.5 font-semibold">Call #</th>
+                    <th class="px-5 py-2.5 font-semibold">Allotments</th>
+                    <th class="px-5 py-2.5 font-semibold">Imported By</th>
+                    <th class="px-5 py-2.5 font-semibold">Status</th>
+                    <th class="px-5 py-2.5 font-semibold text-right">Action</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for call in calls %}
+                <tr class="border-b border-slate-100 last:border-0">
+                    <td class="px-5 py-2.5 font-mono font-semibold text-slate-700">{{ call.call_id }}</td>
+                    <td class="px-5 py-2.5">{{ call.year }}</td>
+                    <td class="px-5 py-2.5">#{{ call.sequence }}</td>
+                    <td class="px-5 py-2.5">{{ call.allotments.count }}</td>
+                    <td class="px-5 py-2.5 text-slate-500">{{ call.imported_by|default:'—' }}</td>
+                    <td class="px-5 py-2.5">
+                        {% if call.is_active %}
+                        <span class="text-[11px] font-bold uppercase bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded-full">Active</span>
+                        {% else %}
+                        <span class="text-[11px] font-bold uppercase bg-slate-100 text-slate-500 px-2 py-0.5 rounded-full">Inactive</span>
+                        {% endif %}
+                    </td>
+                    <td class="px-5 py-2.5 text-right">
+                        {% if not call.is_active %}
+                        <form method="post" class="inline">
+                            {% csrf_token %}
+                            <input type="hidden" name="action" value="activate_call">
+                            <input type="hidden" name="call_id" value="{{ call.call_id }}">
+                            <button type="submit" title="Make this the active allocation call"
+                                    class="text-xs font-bold uppercase px-3 py-1.5 rounded-lg bg-indigo-50 text-indigo-700 border border-indigo-200 hover:bg-indigo-100 transition">
+                                Set Active
+                            </button>
+                        </form>
+                        {% else %}
+                        <span class="text-xs text-emerald-600 font-semibold">Current</span>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% endif %}
+
+    <p class="text-xs text-slate-400 max-w-3xl">
+        Hall managers see their own hall's allotments call-wise under
+        <a href="{% url 'allocations:allotments' %}" class="font-semibold text-indigo-600 hover:underline">Hall Allotments</a>.
+    </p>
+</div>
+{% endblock %}

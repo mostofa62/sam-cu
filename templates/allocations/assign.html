@@ -36,6 +36,23 @@
 
         {% include 'allocations/partials/student_card.html' with student=preview.student student_id=form.student_id.value %}
 
+        {% if preview.active_call %}
+        <div class="rounded-xl border px-5 py-3 text-sm flex flex-wrap items-center gap-2
+            {% if preview.allotment %}bg-emerald-50 border-emerald-200 text-emerald-800{% else %}bg-red-50 border-red-200 text-red-700{% endif %}">
+            <svg class="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+            {% if preview.allotment %}
+            <span>
+                Merit-list check passed — allotted
+                <span class="font-semibold">{{ preview.allotment.hall_code }}</span>
+                at merit position <span class="font-semibold">{{ preview.allotment.merit_pos }}</span>
+                in active call <span class="font-mono font-semibold">{{ preview.active_call.call_id }}</span>.
+            </span>
+            {% else %}
+            <span>No allotment found for this student in the active call — the assignment will be rejected.</span>
+            {% endif %}
+        </div>
+        {% endif %}
+
         <div class="rounded-xl border border-slate-200 overflow-hidden">
             <div class="px-5 py-3 bg-slate-50 border-b border-slate-200 flex items-center justify-between gap-3">
                 <h4 class="text-sm font-bold text-slate-700 uppercase tracking-wide">Hall &amp; Seat Details</h4>

@@ -1,7 +1,10 @@
 from django.core.exceptions import ValidationError
 from django.utils import timezone
 
-from .models import ActionChoices, OrderChoices, SeatAssignment, SeatAssignmentLog
+from halls.models import Hall
+
+from .models import (ActionChoices, AllocationCall, HallAllocation, OrderChoices,
+                     SeatAssignment, SeatAssignmentLog)
 
 
 def _already_assigned_message(assignment, acting_user=None):
@@ -33,13 +36,50 @@ def _already_assigned_message(assignment, acting_user=None):
     return message
 
 
+def _validate_allotment(seat, student_id):
+    """Merit-list gate: the student must be allotted this seat's hall in the active call.
+
+    Skipped entirely when no call has been imported yet (nothing to validate
+    against), so the system still works before the first import.
+    """
+    active_call = AllocationCall.active()
+    if active_call is None:
+        return None
+
+    try:
+        allotment = HallAllocation.objects.select_related('call').get(
+            call=active_call, student_id=student_id,
+        )
+    except HallAllocation.DoesNotExist:
+        raise ValidationError(
+            f'Student {student_id} has no hall allotment in the active allocation call '
+            f'{active_call.call_id} — only students allotted by the merit list can be assigned.'
+        ) from None
+
+    seat_code = seat.hall.code
+    if seat_code and allotment.hall_code != seat_code:
+        allotted_hall = Hall.objects.filter(code=allotment.hall_code).first()
+        allotted_name = f'{allotted_hall.name} ({allotment.hall_code})' if allotted_hall else allotment.hall_code
+        this_hall = f'{seat.hall.name} ({seat_code})'
+        raise ValidationError(
+            f'Student {student_id} was allotted {allotted_name} (merit position '
+            f'{allotment.merit_pos}, call {active_call.call_id}) — not {this_hall}. '
+            f'The allotted hall must match before a seat can be assigned here.'
+        )
+    return allotment
+
+
 def validate_seat_assignable(seat, student_id, acting_user=None):
     """Raise ValidationError when ``student_id`` cannot currently take ``seat``.
 
     Pure check — mutates nothing. Shared by the confirmation preview (to surface
     conflicts before the user commits) and by ``assign_seat`` right before it
     writes, so a seat that filled up between preview and confirm is still caught.
+    Returns the matching merit-list allotment when an active call gates the
+    assignment (None otherwise).
     """
+    allotment = _validate_allotment(seat, student_id)
+
     active_assignments = seat.assignments.filter(is_active=True)
 
     if active_assignments.filter(student_id=student_id).exists():
@@ -58,6 +98,8 @@ def validate_seat_assignable(seat, student_id, acting_user=None):
 
     if active_assignments.count() >= 2:
         raise ValidationError('This seat already has two active students. Release one first.')
+
+    return allotment
 
 
 def assign_seat(seat, student_id, performed_by=None, note=''):

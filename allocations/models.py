@@ -1,3 +1,5 @@
+import re
+
 from django.conf import settings
 from django.core.exceptions import ValidationError
 from django.db import models
@@ -14,6 +16,104 @@ class OrderChoices(models.IntegerChoices):
 class ActionChoices(models.TextChoices):
     ASSIGNED = 'assigned', 'Assigned'
     RELEASED = 'released', 'Released'
+
+
+class AllocationCall(models.Model):
+    """A hall-allocation call/cycle imported from the merit list.
+
+    ``call_id`` is a 6-digit identifier ``YYYYNN`` — e.g. ``202601`` is the
+    first allocation call of 2026 (``202607`` the seventh / July cycle).
+    Importing a file makes its call the single active one; seat assignment is
+    then validated against that active call's allotments.
+    """
+
+    CALL_ID_REGEX = re.compile(r'^\d{6}$')
+
+    call_id = models.CharField(max_length=6, unique=True, db_index=True,
+                               help_text='6-digit id: YYYY + 2-digit call number, e.g. 202601.')
+    year = models.PositiveIntegerField(db_index=True)
+    sequence = models.PositiveSmallIntegerField(help_text='Call number within the year (from last two digits).')
+    is_active = models.BooleanField(default=False, db_index=True,
+                                    help_text='Only one call can be active at a time.')
+    imported_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='allocation_calls',
+    )
+    imported_at = models.DateTimeField(default=timezone.now)
+
+    class Meta:
+        verbose_name = 'Allocation Call'
+        verbose_name_plural = 'Allocation Calls'
+        ordering = ['-year', '-sequence']
+        constraints = [
+            models.UniqueConstraint(
+                fields=['is_active'],
+                condition=models.Q(is_active=True),
+                name='unique_active_allocation_call',
+            ),
+        ]
+
+    def __str__(self):
+        label = f'Call {self.call_id}'
+        return f'{label} (active)' if self.is_active else label
+
+    def clean(self):
+        if self.call_id and not self.CALL_ID_REGEX.match(self.call_id):
+            raise ValidationError({'call_id': 'Call ID must be exactly 6 digits in YYYYNN format, e.g. 202601.'})
+        if self.sequence < 1:
+            raise ValidationError({'sequence': 'Call number within the year must be at least 1.'})
+
+    def save(self, *args, **kwargs):
+        self.full_clean()
+        super().save(*args, **kwargs)
+
+    @classmethod
+    def active(cls):
+        """The currently active call, or None when nothing has been imported yet."""
+        return cls.objects.filter(is_active=True).first()
+
+    @classmethod
+    def parse_call_id(cls, call_id):
+        """Split a YYYYNN call id into (year, sequence); raise ValueError otherwise."""
+        if not cls.CALL_ID_REGEX.match(call_id or ''):
+            raise ValueError('Call ID must be exactly 6 digits in YYYYNN format, e.g. 202601.')
+        return int(call_id[:4]), int(call_id[4:])
+
+
+class HallAllocation(models.Model):
+    """One merit-list allotment row: which hall a student was allotted in a call.
+
+    A student ID is unique across ALL calls — once allotted, the same student
+    can never appear again in any later call.
+    """
+
+    call = models.ForeignKey(AllocationCall, on_delete=models.CASCADE,
+                             related_name='allotments', db_index=True)
+    hall_code = models.CharField(max_length=6, db_index=True,
+                                 help_text='Code of the hall allotted to the student.')
+    student_id = models.CharField(max_length=10, unique=True, db_index=True,
+                                  help_text='Student who received this allotment. '
+                                            'Unique across every allocation call.')
+    merit_pos = models.IntegerField(help_text='Merit position used during the allocation.')
+
+    class Meta:
+        verbose_name = 'Hall Allocation'
+        verbose_name_plural = 'Hall Allocations'
+        ordering = ['call__call_id', 'merit_pos']
+        constraints = [
+            models.UniqueConstraint(
+                fields=['student_id'],
+                name='unique_student_across_calls',
+            ),
+        ]
+
+    def __str__(self):
+        return f'{self.student_id} -> {self.hall_code} (call {self.call.call_id}, merit {self.merit_pos})'
+
+    def clean(self):
+        from halls.models import Hall
+        if self.hall_code and not Hall.objects.filter(code=self.hall_code).exists():
+            raise ValidationError({'hall_code': f'No hall exists with code "{self.hall_code}".'})
 
 
 class SeatReleaseReason(models.Model):

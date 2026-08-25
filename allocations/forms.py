@@ -110,3 +110,23 @@ class RevokeForm(forms.Form):
             'class': 'w-full px-4 py-3 rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-red-500',
         }),
     )
+
+
+class ImportAllocationsForm(forms.Form):
+    csv_file = forms.FileField(
+        label='Allocation CSV File',
+        help_text='Columns: call_id, hall_code, student_id, merit_pos — one row per allotted student.',
+        widget=forms.ClearableFileInput(attrs={
+            'class': 'w-full px-4 py-3 rounded-lg border border-gray-300 '
+                     'file:mr-4 file:px-4 file:py-2 file:rounded-lg file:border-0 '
+                     'file:bg-indigo-600 file:text-white file:font-semibold file:cursor-pointer '
+                     'hover:file:bg-indigo-700',
+            'accept': '.csv,text/csv',
+        }),
+    )
+
+    def clean_csv_file(self):
+        file = self.cleaned_data['csv_file']
+        if file and not file.name.lower().endswith('.csv'):
+            raise forms.ValidationError('Please upload a .csv file.')
+        return file

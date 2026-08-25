@@ -1,7 +1,38 @@
 from django.contrib import admin
 
-from .models import (ActionChoices, SeatAssignment, SeatAssignmentLog,
-                     SeatMaintenance, SeatReleaseReason)
+from .models import (ActionChoices, AllocationCall, HallAllocation, SeatAssignment,
+                     SeatAssignmentLog, SeatMaintenance, SeatReleaseReason)
+
+
+@admin.register(AllocationCall)
+class AllocationCallAdmin(admin.ModelAdmin):
+    list_display = ('call_id', 'year', 'sequence', 'is_active', 'allotment_count',
+                    'imported_by', 'imported_at')
+    list_filter = ('is_active', 'year')
+    search_fields = ('call_id',)
+    list_editable = ('is_active',)
+    readonly_fields = ('imported_at',)
+
+    @admin.display(description='Allotments')
+    def allotment_count(self, obj):
+        return obj.allotments.count()
+
+    def save_model(self, request, obj, form, change):
+        if obj.is_active:
+            # Keep the "only one active call" rule when toggled from admin.
+            AllocationCall.objects.exclude(pk=obj.pk).filter(is_active=True).update(is_active=False)
+        super().save_model(request, obj, form, change)
+
+
+@admin.register(HallAllocation)
+class HallAllocationAdmin(admin.ModelAdmin):
+    list_display = ('student_id', 'hall_code', 'merit_pos', 'call', 'call_active')
+    list_filter = ('call__is_active', 'call', 'hall_code')
+    search_fields = ('student_id', 'hall_code')
+
+    @admin.display(boolean=True, description='Call Active')
+    def call_active(self, obj):
+        return obj.call.is_active
 
 
 @admin.register(SeatReleaseReason)

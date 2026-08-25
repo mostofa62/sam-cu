@@ -1,0 +1,247 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="max-w-6xl space-y-8">
+
+    <!-- Active call banner -->
+    <div class="rounded-xl border p-5 flex flex-wrap items-center justify-between gap-4
+        {% if active_call %}bg-emerald-50 border-emerald-200{% else %}bg-amber-50 border-amber-200{% endif %}">
+        <div>
+            <p class="text-[11px] uppercase tracking-wide font-semibold {% if active_call %}text-emerald-600{% else %}text-amber-600{% endif %}">
+                Active Allocation Call
+            </p>
+            <p class="mt-1 text-lg font-bold {% if active_call %}text-emerald-900{% else %}text-amber-900{% endif %}">
+                {% if active_call %}
+                    {{ active_call.call_id }}
+                    <span class="text-sm font-medium text-emerald-700">
+                        — year {{ active_call.year }}, call #{{ active_call.sequence }}
+                    </span>
+                {% else %}
+                    No call imported yet
+                {% endif %}
+            </p>
+            <p class="text-xs mt-1 {% if active_call %}text-emerald-700{% else %}text-amber-700{% endif %}">
+                {% if active_call %}
+                    Seat assignment is validated against this call — a student can only be assigned
+                    into the hall the merit list allotted them.
+                {% else %}
+                    Once the administrator imports a merit-list call, your allotments appear here.
+                {% endif %}
+            </p>
+        </div>
+        <svg class="w-10 h-10 {% if active_call %}text-emerald-400{% else %}text-amber-400{% endif %}" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M9 12h3.75M9 15h3.75M9 18h3.75m3 .75H18a2.25 2.25 0 002.25-2.25V6.108c0-1.135-.845-2.098-1.976-2.192a48.424 48.424 0 00-1.123-.08m-5.801 0c-.065.21-.1.433-.1.664 0 .414.336.75.75.75h4.5a.75.75 0 00.75-.75 2.25 2.25 0 00-.1-.664m-5.8 0A2.251 2.251 0 0113.5 2.25H15c1.012 0 1.867.668 2.15 1.586m-5.8 0c-.376.023-.75.05-1.124.08C9.095 4.01 8.25 4.973 8.25 6.108V8.25m0 0H4.875c-.621 0-1.125.504-1.125 1.125v11.25c0 .621.504 1.125 1.125 1.125h9.75c.621 0 1.125-.504 1.125-1.125V9.375c0-.621-.504-1.125-1.125-1.125H8.25zM6.75 12h.008v.008H6.75V12zm0 3h.008v.008H6.75V15zm0 3h.008v.008H6.75V18z"/>
+        </svg>
+    </div>
+
+    <!-- Call selector -->
+    {% if calls %}
+    <div>
+        <h4 class="text-sm font-bold text-slate-700 uppercase tracking-wide mb-3">Calls</h4>
+        <div class="flex flex-wrap gap-2">
+            {% for call in calls %}
+            <a href="?call={{ call.call_id }}"
+               class="inline-flex items-center gap-2 px-4 py-2 rounded-lg border text-sm font-mono font-semibold transition
+                {% if selected_call and call.call_id == selected_call.call_id %}
+                    bg-indigo-600 border-indigo-600 text-white
+                {% elif call.is_active %}
+                    bg-emerald-50 border-emerald-300 text-emerald-800 hover:bg-emerald-100
+                {% else %}
+                    bg-white border-slate-200 text-slate-600 hover:bg-slate-50
+                {% endif %}">
+                {{ call.call_id }}
+                <span class="text-[10px] font-sans font-bold uppercase px-1.5 py-0.5 rounded-full
+                    {% if selected_call and call.call_id == selected_call.call_id %}bg-white/20 text-white{% else %}bg-slate-100 text-slate-500{% endif %}">
+                    {{ call.rows_in_scope }} student{{ call.rows_in_scope|pluralize }}
+                </span>
+                {% if call.is_active %}
+                <span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" title="Active call"></span>
+                {% endif %}
+            </a>
+            {% endfor %}
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Allotments of the selected call -->
+    <div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+        <div class="px-5 py-3 bg-slate-50 border-b border-slate-200 flex flex-wrap items-center justify-between gap-3">
+            <h4 class="text-sm font-bold text-slate-700 uppercase tracking-wide">
+                Allotments — Call <span class="font-mono">{{ selected_call.call_id|default:'—' }}</span>
+            </h4>
+            <div class="flex items-center gap-3">
+                {% if request.user.is_superuser and allotments %}
+                <span id="del-count-badge"
+                      class="hidden sm:inline-flex items-center gap-1.5 text-xs font-semibold text-slate-500 bg-slate-100 px-2.5 py-1 rounded-full">
+                    <span id="del-count">0</span> selected
+                </span>
+                <button type="button" id="del-selected-btn" disabled
+                        class="text-xs font-bold uppercase px-3 py-1.5 rounded-lg bg-red-50 text-red-700 border border-red-200 hover:bg-red-100 disabled:opacity-40 disabled:cursor-not-allowed transition">
+                    Delete Selected
+                </button>
+                {% else %}
+                <span class="text-xs text-slate-400">ordered by merit position</span>
+                {% endif %}
+            </div>
+        </div>
+        {% if allotments %}
+
+        <form method="post" action="{% url 'allocations:delete_allotments' %}" id="allotment-form">
+            {% csrf_token %}
+            <input type="hidden" name="next_call" value="{{ selected_call.call_id }}">
+        <table class="w-full text-sm">
+            <thead>
+                <tr class="text-left text-[11px] uppercase tracking-wide text-slate-400 border-b border-slate-200">
+                    {% if request.user.is_superuser %}
+                    <th class="px-5 py-2.5 w-10"><input type="checkbox" id="select-all"
+                        class="w-4 h-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 cursor-pointer"
+                        title="Select all rows on this page"></th>
+                    {% endif %}
+                    <th class="px-5 py-2.5 font-semibold">Merit Position</th>
+                    <th class="px-5 py-2.5 font-semibold">Student ID</th>
+                    <th class="px-5 py-2.5 font-semibold">Name</th>
+                    <th class="px-5 py-2.5 font-semibold">Allotted Hall Code</th>
+                    {% if request.user.is_superuser %}
+                    <th class="px-5 py-2.5 font-semibold text-right">Remove</th>
+                    {% endif %}
+                </tr>
+            </thead>
+            <tbody>
+                {% for allotment in allotments %}
+                <tr class="border-b border-slate-100 last:border-0 group"
+                    data-id="{{ allotment.pk }}"
+                    data-student="{{ allotment.student_id }}"
+                    data-call="{{ allotment.call.call_id }}"
+                    data-hall="{{ allotment.hall_code }}"
+                    data-merit="{{ allotment.merit_pos }}">
+                    {% if request.user.is_superuser %}
+                    <td class="px-5 py-2.5">
+                        <input type="checkbox" name="ids" value="{{ allotment.pk }}"
+                               class="w-4 h-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 cursor-pointer row-check">
+                    </td>
+                    {% endif %}
+                    <td class="px-5 py-2.5 font-semibold text-indigo-700">{{ allotment.merit_pos }}</td>
+                    <td class="px-5 py-2.5 font-mono font-semibold text-slate-700">{{ allotment.student_id }}</td>
+                    <td class="px-5 py-2.5 text-slate-600">{{ allotment.student_name|default:'—' }}</td>
+                    <td class="px-5 py-2.5 font-mono">{{ allotment.hall_code }}</td>
+                    {% if request.user.is_superuser %}
+                    <td class="px-5 py-2.5 text-right">
+                        <button type="button" title="Delete this allotment row"
+                                class="row-del inline-flex items-center justify-center w-8 h-8 rounded-lg text-slate-400 hover:text-red-600 hover:bg-red-50 opacity-0 group-hover:opacity-100 focus:opacity-100 transition">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+                        </button>
+                    </td>
+                    {% endif %}
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        </form>
+
+        {% else %}
+        <div class="p-8 text-sm text-slate-500">
+            {% if not calls %}
+            No allocation data for your hall yet — allotments appear here after the administrator imports a call.
+            {% elif selected_call %}
+            This call contains no allotments for your hall.
+            {% endif %}
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+{% if request.user.is_superuser and allotments %}
+<script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+<script>
+(function () {
+    const form = document.getElementById('allotment-form');
+    const selAll = document.getElementById('select-all');
+    const delBtn = document.getElementById('del-selected-btn');
+    const countEl = document.getElementById('del-count');
+    if (!form || !selAll || !delBtn || !countEl) return;
+    const rows = Array.from(form.querySelectorAll('tbody tr[data-id]'));
+    const checks = rows.map(r => r.querySelector('input[name="ids"]'));
+
+    const selectedRows = () => rows.filter(r => r.querySelector('input[name="ids"]').checked);
+
+    function refresh() {
+        const n = selectedRows().length;
+        countEl.textContent = n;
+        delBtn.disabled = n === 0;
+        selAll.checked = n > 0 && n === rows.length;
+    }
+
+    selAll.addEventListener('change', () => {
+        checks.forEach(c => { c.checked = selAll.checked; });
+        refresh();
+    });
+    checks.forEach(c => c.addEventListener('change', refresh));
+
+    function detailHtml(sel) {
+        const items = sel.map(r => {
+            const d = r.dataset;
+            return `<li><b>${d.student}</b> &mdash; call ${d.call}, hall ${d.hall}, merit ${d.merit}</li>`;
+        });
+        const extra = items.length > 8 ? `<li><i>…and ${items.length - 8} more</i></li>` : '';
+        return `<p style="margin-bottom:8px">This will permanently remove <b>${sel.length}</b> allotment row(s):</p>` +
+               `<ul style="text-align:left;display:inline-block">${items.slice(0, 8).join('')}${extra}</ul>`;
+    }
+
+    function detailText(sel) {
+        return sel.map(r => {
+            const d = r.dataset;
+            return `${d.student} (call ${d.call}, hall ${d.hall}, merit ${d.merit})`;
+        }).join('\n');
+    }
+
+    // SweetAlert2 when the CDN is reachable; otherwise fall back to the
+    // native confirm box so deletion never silently stops working.
+    function askConfirm(sel) {
+        if (window.Swal) {
+            return Swal.fire({
+                title: 'Delete allotment rows?',
+                html: detailHtml(sel),
+                icon: 'warning',
+                showCancelButton: true,
+                confirmButtonColor: '#dc2626',
+                cancelButtonColor: '#64748b',
+                confirmButtonText: 'Yes, delete',
+                cancelButtonText: 'Cancel',
+                focusCancel: true,
+            }).then(result => result.isConfirmed);
+        }
+        return Promise.resolve(window.confirm(
+            `Delete ${sel.length} allotment row(s)? This cannot be undone.\n\n${detailText(sel)}`
+        ));
+    }
+
+    async function confirmDelete() {
+        const sel = selectedRows();
+        if (!sel.length) return;
+        if (await askConfirm(sel)) {
+            // Native submit() bypasses this form's submit handler — no double prompt.
+            form.submit();
+        }
+    }
+
+    delBtn.addEventListener('click', confirmDelete);
+    form.addEventListener('submit', e => {
+        e.preventDefault();
+        confirmDelete();
+    });
+
+    // Per-row trash icon: isolate its checkbox, then run the same confirm flow.
+    rows.forEach(r => {
+        r.querySelector('.row-del').addEventListener('click', () => {
+            checks.forEach(c => { c.checked = false; });
+            r.querySelector('input[name="ids"]').checked = true;
+            refresh();
+            confirmDelete();
+        });
+    });
+})();
+</script>
+{% endif %}
+{% endblock %}
