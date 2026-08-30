@@ -108,7 +108,7 @@
                 </div>
             </div>
             {% empty %}
-            <p class="text-sm text-slate-400">No halls created yet. Add halls in the admin panel.</p>
+            <p class="text-sm text-slate-400">No halls created yet.{% if request.user.is_app_admin %} Add halls under <a href="{% url 'adminpanel:hall_list' %}" class="text-indigo-600 font-semibold">Administration → Halls &amp; Seats</a>.{% endif %}</p>
             {% endfor %}
         </div>
     </div>

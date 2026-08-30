@@ -290,12 +290,13 @@ def room_seats_json(request):
 
 @login_required
 def import_allocations_view(request):
-    """(Superusers only) Upload a merit-list allocation CSV and manage calls.
+    """(App admins only) Upload a merit-list allocation CSV and manage calls.
 
-    The imported call becomes the single active one. Administrators can also
-    re-activate any previously imported call by hand.
+    The imported call becomes the single active one. Administrators (superusers
+    or members of the 'Admin' group) can also re-activate any previously
+    imported call by hand.
     """
-    if not request.user.is_superuser:
+    if not request.user.is_app_admin:
         messages.info(
             request,
             'Allocation files are imported by administrators only — showing your hall allotments instead.',
@@ -350,7 +351,7 @@ def import_allocations_view(request):
 
 
 def _activate_call(request):
-    """Manually make an existing call the single active one (superuser action)."""
+    """Manually make an existing call the single active one (admin action)."""
     call_id = (request.POST.get('call_id') or '').strip()
     try:
         call = AllocationCall.objects.get(call_id=call_id)
@@ -369,9 +370,9 @@ def _activate_call(request):
 def allotments(request):
     """Read-only, call-wise merit-list allotments scoped to the viewer's halls.
 
-    Hall managers see only rows allotted to the hall they manage; superusers
-    see every hall. A call is selectable via ?call=YYYYNN and defaults to the
-    active one.
+    Hall managers see only rows allotted to the hall they manage; app admins
+    (superusers / Admin group) see every hall. A call is selectable via
+    ?call=YYYYNN and defaults to the active one.
     """
     visible_codes = list(request.user.visible_halls().exclude(code__isnull=True)
                          .values_list('code', flat=True))
@@ -379,7 +380,7 @@ def allotments(request):
     calls = (AllocationCall.objects
              .annotate(rows_in_scope=Count('allotments', filter=scope_q))
              .order_by('-year', '-sequence'))
-    if not request.user.is_superuser:
+    if not request.user.is_app_admin:
         calls = calls.filter(rows_in_scope__gt=0)
 
     selected = None
@@ -415,13 +416,13 @@ def allotments(request):
 
 @login_required
 def delete_allotments(request):
-    """(Superusers only) Remove mistakenly imported allotment row(s).
+    """(App admins only) Remove mistakenly imported allotment row(s).
 
     Expects a POST with ``ids`` (comma-separated HallAllocation pks). The UI
     asks for an explicit SweetAlert confirmation before submitting, and the
     success message repeats exactly what was removed.
     """
-    if not request.user.is_superuser:
+    if not request.user.is_app_admin:
         messages.error(request, 'Only administrators can delete allotment rows.')
         return redirect('allocations:allotments')
     if request.method != 'POST':

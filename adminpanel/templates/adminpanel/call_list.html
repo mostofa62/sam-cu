@@ -1,0 +1,92 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="grid grid-cols-1 xl:grid-cols-3 gap-6">
+
+    <!-- Import form -->
+    <div class="xl:col-span-1 space-y-6">
+        <div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+            <div class="px-5 py-4 border-b border-slate-200">
+                <h3 class="font-bold text-slate-800">Import merit list</h3>
+                <p class="text-sm text-slate-500">CSV columns: call_id, hall_code, student_id, merit_pos.</p>
+            </div>
+            <form method="post" enctype="multipart/form-data" class="p-5 space-y-4">
+                {% csrf_token %}
+                {% if form.non_field_errors %}
+                <div class="px-4 py-3 rounded-lg bg-red-50 text-red-700 border border-red-200 text-sm font-medium">{{ form.non_field_errors }}</div>
+                {% endif %}
+                {{ form.csv_file }}
+                {% for error in form.csv_file.errors %}<p class="text-xs text-red-600 font-medium">{{ error }}</p>{% endfor %}
+                <button type="submit" class="w-full px-4 py-2.5 rounded-lg bg-indigo-600 text-white text-sm font-bold hover:bg-indigo-700 transition">
+                    Upload &amp; import
+                </button>
+                <p class="text-xs text-slate-400">The call_id must be 6 digits (YYYYNN, e.g. 202601). Re-importing an existing call only updates its rows.</p>
+            </form>
+        </div>
+
+        <div class="bg-indigo-50 border border-indigo-200 rounded-xl p-5 text-sm text-indigo-800">
+            <p class="font-bold mb-1">Active call</p>
+            {% if active_call %}
+            <p>Call <span class="font-mono font-bold">{{ active_call.call_id }}</span> ({{ active_call.year }}, #{{ active_call.sequence }}) is the allocation source for seat assignments.</p>
+            {% else %}
+            <p>No active call — assignment validation against the merit list is skipped until a call is imported and activated.</p>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- Calls table -->
+    <div class="xl:col-span-2 bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden self-start w-full">
+        <div class="px-5 py-4 border-b border-slate-200">
+            <h3 class="font-bold text-slate-800">Allocation calls</h3>
+            <p class="text-sm text-slate-500">Exactly one call can be active at a time.</p>
+        </div>
+        <div class="overflow-x-auto">
+            <table class="w-full text-sm">
+                <thead>
+                    <tr class="bg-slate-50 text-slate-500 uppercase text-xs tracking-wider">
+                        <th class="px-5 py-3 text-left font-semibold">Call</th>
+                        <th class="px-5 py-3 text-left font-semibold">Year / No.</th>
+                        <th class="px-5 py-3 text-left font-semibold">Allotments</th>
+                        <th class="px-5 py-3 text-left font-semibold">Imported</th>
+                        <th class="px-5 py-3 text-right font-semibold">Actions</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-slate-100">
+                    {% for call in calls %}
+                    <tr class="hover:bg-slate-50">
+                        <td class="px-5 py-3.5 font-mono font-bold text-slate-800">
+                            {{ call.call_id }}
+                            {% if call.is_active %}<span class="ml-1 align-middle text-[11px] font-bold uppercase bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded-full">Active</span>{% endif %}
+                        </td>
+                        <td class="px-5 py-3.5 text-slate-600">{{ call.year }} / #{{ call.sequence }}</td>
+                        <td class="px-5 py-3.5 text-slate-600">{{ call.allotment_total }}
+                            <a href="{% url 'allocations:allotments' %}?call={{ call.call_id }}" class="text-indigo-600 hover:text-indigo-800 text-xs font-semibold uppercase ml-1">view</a>
+                        </td>
+                        <td class="px-5 py-3.5 text-slate-500">{{ call.imported_at|date:"M d, Y H:i" }}</td>
+                        <td class="px-5 py-3.5 text-right whitespace-nowrap">
+                            {% if call.is_active %}
+                            <form method="post" class="inline">
+                                {% csrf_token %}
+                                <input type="hidden" name="action" value="deactivate_call">
+                                <input type="hidden" name="call_id" value="{{ call.call_id }}">
+                                <button type="submit" class="text-amber-600 hover:text-amber-800 font-semibold text-xs uppercase">Deactivate</button>
+                            </form>
+                            {% else %}
+                            <form method="post" class="inline">
+                                {% csrf_token %}
+                                <input type="hidden" name="action" value="activate_call">
+                                <input type="hidden" name="call_id" value="{{ call.call_id }}">
+                                <button type="submit" class="text-emerald-600 hover:text-emerald-800 font-semibold text-xs uppercase">Set active</button>
+                            </form>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr><td colspan="5" class="px-5 py-10 text-center text-slate-400">No allocation calls imported yet.</td></tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}

@@ -56,6 +56,7 @@ INSTALLED_APPS = [
     'allocations',
     'dashboard',
     'students',
+    'adminpanel',
 ]
 
 MIDDLEWARE = [

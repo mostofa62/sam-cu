@@ -53,18 +53,88 @@
                     <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12h3.75M9 15h3.75M9 18h3.75m3 .75H18a2.25 2.25 0 002.25-2.25V6.108c0-1.135-.845-2.098-1.976-2.192a48.424 48.424 0 00-1.123-.08m-5.801 0c-.065.21-.1.433-.1.664 0 .414.336.75.75.75h4.5a.75.75 0 00.75-.75 2.25 2.25 0 00-.1-.664m-5.8 0A2.251 2.251 0 0113.5 2.25H15c1.012 0 1.867.668 2.15 1.586m-5.8 0c-.376.023-.75.05-1.124.08C9.095 4.01 8.25 4.973 8.25 6.108V8.25m0 0H4.875c-.621 0-1.125.504-1.125 1.125v11.25c0 .621.504 1.125 1.125 1.125h9.75c.621 0 1.125-.504 1.125-1.125V9.375c0-.621-.504-1.125-1.125-1.125H8.25zM6.75 12h.008v.008H6.75V12zm0 3h.008v.008H6.75V15zm0 3h.008v.008H6.75V18z"/></svg>
                     Hall Allotments
                 </a>
-                {% if request.user.is_superuser %}
+                {% if request.user.is_app_admin %}
                 {% url 'allocations:import' as import_url %}
                 <a href="{{ import_url }}" class="flex items-center gap-3 px-4 py-2.5 rounded-lg text-sm font-medium {% if request.path == import_url %}bg-indigo-600 text-white{% else %}hover:bg-slate-800 hover:text-white{% endif %}">
                     <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 13h6m-3-3v6m-9 1V7a2 2 0 012-2h6l2 2h6a2 2 0 012 2v8M4 21h16a1 1 0 001-1v-3M3 12h18"/></svg>
                     Import Allocations
                 </a>
                 {% endif %}
-                {% if request.user.is_staff %}
+
+                {% if request.user.is_app_admin %}
+                <!-- In-app administration (Admin group + superusers). The Django
+                     admin at /admin/ stays superuser-only and is linked below. -->
+                <div class="pt-4 mt-4 border-t border-slate-800">
+                    <p class="px-4 pb-2 text-[11px] font-bold uppercase tracking-wider text-slate-500">Administration</p>
+                    {% url 'adminpanel:index' as admin_index_url %}
+                    <a href="{{ admin_index_url }}" class="flex items-center gap-3 px-4 py-2 rounded-lg text-sm font-medium {% if request.path == admin_index_url %}bg-indigo-600 text-white{% else %}hover:bg-slate-800 hover:text-white{% endif %}">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/><path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+                        Overview
+                    </a>
+                    {% url 'adminpanel:hall_list' as halls_url %}
+                    <a href="{{ halls_url }}" class="flex items-center gap-3 px-4 py-2 rounded-lg text-sm font-medium {% if request.path == halls_url %}bg-indigo-600 text-white{% else %}hover:bg-slate-800 hover:text-white{% endif %}">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"/></svg>
+                        Halls
+                    </a>
+                    {% url 'adminpanel:block_list' as blocks_url %}
+                    <a href="{{ blocks_url }}" class="flex items-center gap-3 px-4 py-2 rounded-lg text-sm font-medium {% if request.path == blocks_url %}bg-indigo-600 text-white{% else %}hover:bg-slate-800 hover:text-white{% endif %}">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"/></svg>
+                        Blocks
+                    </a>
+                    {% url 'adminpanel:floor_list' as floors_url %}
+                    <a href="{{ floors_url }}" class="flex items-center gap-3 px-4 py-2 rounded-lg text-sm font-medium {% if request.path == floors_url %}bg-indigo-600 text-white{% else %}hover:bg-slate-800 hover:text-white{% endif %}">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M3 4h18M3 10h18M3 16h18M3 22h18"/></svg>
+                        Floors
+                    </a>
+                    {% url 'adminpanel:room_list' as rooms_url %}
+                    <a href="{{ rooms_url }}" class="flex items-center gap-3 px-4 py-2 rounded-lg text-sm font-medium {% if request.path == rooms_url %}bg-indigo-600 text-white{% else %}hover:bg-slate-800 hover:text-white{% endif %}">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"/></svg>
+                        Rooms
+                    </a>
+                    {% url 'adminpanel:seat_list' as seats_url %}
+                    <a href="{{ seats_url }}" class="flex items-center gap-3 px-4 py-2 rounded-lg text-sm font-medium {% if request.path == seats_url %}bg-indigo-600 text-white{% else %}hover:bg-slate-800 hover:text-white{% endif %}">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"/></svg>
+                        Seats
+                    </a>
+                    {% url 'adminpanel:user_list' as users_url %}
+                    <a href="{{ users_url }}" class="flex items-center gap-3 px-4 py-2 rounded-lg text-sm font-medium {% if request.path == users_url %}bg-indigo-600 text-white{% else %}hover:bg-slate-800 hover:text-white{% endif %}">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z"/></svg>
+                        Hall Managers
+                    </a>
+                    {% url 'adminpanel:call_list' as calls_url %}
+                    <a href="{{ calls_url }}" class="flex items-center gap-3 px-4 py-2 rounded-lg text-sm font-medium {% if request.path == calls_url %}bg-indigo-600 text-white{% else %}hover:bg-slate-800 hover:text-white{% endif %}">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
+                        Allocation Calls
+                    </a>
+                    {% url 'adminpanel:student_list' as students_url %}
+                    <a href="{{ students_url }}" class="flex items-center gap-3 px-4 py-2 rounded-lg text-sm font-medium {% if request.path == students_url %}bg-indigo-600 text-white{% else %}hover:bg-slate-800 hover:text-white{% endif %}">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 14l9-5-9-5-9 5 9 5zm0 0l6.16-3.42A12 12 0 0112 21a12 12 0 01-6.16-10.42L12 14z"/></svg>
+                        Students
+                    </a>
+                    {% url 'adminpanel:assignment_list' as a_assignments_url %}
+                    <a href="{{ a_assignments_url }}" class="flex items-center gap-3 px-4 py-2 rounded-lg text-sm font-medium {% if request.path == a_assignments_url %}bg-indigo-600 text-white{% else %}hover:bg-slate-800 hover:text-white{% endif %}">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                        Seat Assignments
+                    </a>
+                    {% url 'adminpanel:log_list' as logs_url %}
+                    <a href="{{ logs_url }}" class="flex items-center gap-3 px-4 py-2 rounded-lg text-sm font-medium {% if request.path == logs_url %}bg-indigo-600 text-white{% else %}hover:bg-slate-800 hover:text-white{% endif %}">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+                        Assignment Logs
+                    </a>
+                    {% url 'adminpanel:reason_list' as reasons_url %}
+                    <a href="{{ reasons_url }}" class="flex items-center gap-3 px-4 py-2 rounded-lg text-sm font-medium {% if request.path == reasons_url %}bg-indigo-600 text-white{% else %}hover:bg-slate-800 hover:text-white{% endif %}">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                        Release Reasons
+                    </a>
+                </div>
+                {% endif %}
+
+                {% if request.user.is_superuser %}
+                <!-- Django admin (/admin/) — superusers only -->
                 <div class="pt-4 mt-4 border-t border-slate-800">
                     <a href="{% url 'admin:index' %}" target="_blank" class="flex items-center gap-3 px-4 py-2.5 rounded-lg text-sm font-medium hover:bg-slate-800 hover:text-white">
-                        <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/><path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
-                        Admin Panel
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+                        Super Admin Panel
                     </a>
                 </div>
                 {% endif %}
@@ -76,7 +146,7 @@
                     </div>
                     <div class="flex-1 min-w-0">
                         <p class="text-white text-sm font-medium truncate">{{ request.user.full_name|default:'User' }}</p>
-                        <p class="text-xs text-slate-500 truncate">{% if request.user.is_superuser %}Administrator{% else %}{% if request.user.managed_hall %}Hall Manager: {{ request.user.managed_hall.name }}{% else %}User{% endif %}{% endif %}</p>
+                        <p class="text-xs text-slate-500 truncate">{% if request.user.is_superuser %}Super Administrator{% elif request.user.in_admin_group %}Administrator{% else %}{% if request.user.managed_hall %}Hall Manager: {{ request.user.managed_hall.name }}{% else %}User{% endif %}{% endif %}</p>
                     </div>
                     <form method="post" action="{% url 'accounts:logout' %}" title="Logout" class="text-slate-500 hover:text-red-400">
                         {% csrf_token %}

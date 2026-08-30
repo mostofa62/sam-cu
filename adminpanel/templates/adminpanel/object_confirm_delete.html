@@ -1,0 +1,27 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="max-w-xl">
+    <div class="bg-white rounded-xl shadow-sm border border-red-200 overflow-hidden">
+        <div class="px-6 py-5 border-b border-slate-200">
+            <h3 class="font-bold text-red-700">Delete {{ object_verbose }}</h3>
+            <p class="text-sm text-slate-500">This action cannot be undone.</p>
+        </div>
+        <div class="p-6 space-y-4">
+            <p class="text-sm text-slate-700">
+                You are about to delete <span class="font-bold">{{ object }}</span>.
+                {% if warning %}<span class="block mt-2 px-4 py-3 rounded-lg bg-amber-50 text-amber-800 border border-amber-200">{{ warning }}</span>{% endif %}
+            </p>
+            <form method="post" class="flex items-center gap-3">
+                {% csrf_token %}
+                <button type="submit"
+                        class="px-4 py-2.5 rounded-lg bg-red-600 text-white text-sm font-bold hover:bg-red-700 transition">
+                    Yes, delete
+                </button>
+                <a href="{{ back_url|default:success_url }}"
+                   class="px-4 py-2.5 rounded-lg bg-slate-100 text-slate-600 text-sm font-bold hover:bg-slate-200 transition">Cancel</a>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}

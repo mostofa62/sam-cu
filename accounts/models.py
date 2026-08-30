@@ -4,6 +4,12 @@ from django.core.validators import RegexValidator
 from django.db import models
 from django.utils import timezone
 
+# Django group that grants full in-app administration without superuser rights.
+# Members manage halls/rooms/seats, hall managers, students and allocation calls
+# from the built-in admin panel at /manage/, while the Django admin (/admin/)
+# stays reserved for superusers.
+ADMIN_GROUP_NAME = 'Admin'
+
 
 class UserManager(BaseUserManager):
     """Manager for custom User model without username field."""
@@ -82,10 +88,22 @@ class User(AbstractBaseUser, PermissionsMixin):
     def is_hall_manager(self):
         return self.managed_hall_id is not None
 
+    @property
+    def in_admin_group(self):
+        """Member of the non-superuser 'Admin' group."""
+        if not self.pk:
+            return False
+        return self.groups.filter(name=ADMIN_GROUP_NAME).exists()
+
+    @property
+    def is_app_admin(self):
+        """Global administrator inside the web app: superuser or 'Admin' group member."""
+        return self.is_superuser or self.in_admin_group
+
     def visible_halls(self):
-        """Halls the user can see/act on. Superusers get every hall, everyone else only their own managed hall."""
+        """Halls the user can see/act on. App admins get every hall, everyone else only their own managed hall."""
         from halls.models import Hall
-        if self.is_superuser:
+        if self.is_app_admin:
             return Hall.objects.all()
         if self.managed_hall_id is None:
             return Hall.objects.none()

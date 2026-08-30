@@ -22,7 +22,7 @@ def _already_assigned_message(assignment, acting_user=None):
     can_release = (
         acting_user is not None
         and (
-            acting_user.is_superuser
+            acting_user.is_app_admin
             or acting_user.visible_halls().filter(pk=assignment.seat.hall_id).exists()
         )
     )

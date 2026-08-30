@@ -1,10 +1,12 @@
 from django.contrib import admin
 from django.utils.html import format_html
 
+from hsm.admin_site import hsm_admin_site
+
 from .models import Block, Floor, Hall, Room, Seat
 
 
-@admin.register(Hall)
+@admin.register(Hall, site=hsm_admin_site)
 class HallAdmin(admin.ModelAdmin):
     list_display = ('name', 'code', 'hall_type', 'minority', 'color_preview', 'has_blocks', 'total_seats', 'free_seats', 'created_at')
     list_editable = ('has_blocks',)
@@ -20,7 +22,7 @@ class HallAdmin(admin.ModelAdmin):
         return obj.free_seats
 
 
-@admin.register(Block)
+@admin.register(Block, site=hsm_admin_site)
 class BlockAdmin(admin.ModelAdmin):
     list_display = ('name', 'hall', 'color_preview')
     list_filter = ('hall',)
@@ -31,7 +33,7 @@ class BlockAdmin(admin.ModelAdmin):
         return format_html('<span style="display:inline-block;width:18px;height:18px;border-radius:4px;background:{}"></span> {}', obj.color, obj.color)
 
 
-@admin.register(Floor)
+@admin.register(Floor, site=hsm_admin_site)
 class FloorAdmin(admin.ModelAdmin):
     list_display = ('name', 'hall', 'block', 'color_preview')
     list_filter = ('hall', 'block')
@@ -42,7 +44,7 @@ class FloorAdmin(admin.ModelAdmin):
         return format_html('<span style="display:inline-block;width:18px;height:18px;border-radius:4px;background:{}"></span> {}', obj.color, obj.color)
 
 
-@admin.register(Room)
+@admin.register(Room, site=hsm_admin_site)
 class RoomAdmin(admin.ModelAdmin):
     list_display = ('name', 'hall', 'floor', 'capacity', 'color_preview')
     list_filter = ('hall', 'floor')
@@ -53,7 +55,7 @@ class RoomAdmin(admin.ModelAdmin):
         return format_html('<span style="display:inline-block;width:18px;height:18px;border-radius:4px;background:{}"></span> {}', obj.color, obj.color)
 
 
-@admin.register(Seat)
+@admin.register(Seat, site=hsm_admin_site)
 class SeatAdmin(admin.ModelAdmin):
     list_display = ('seat_number', 'room', 'hall', 'status', 'is_active')
     list_filter = ('hall', 'room', 'is_active')

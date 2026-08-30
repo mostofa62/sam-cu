@@ -1,0 +1,95 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+    <div class="px-6 py-5 border-b border-slate-200 flex flex-wrap items-center justify-between gap-3">
+        <div>
+            <h3 class="font-bold text-slate-800">Floors</h3>
+            <p class="text-sm text-slate-500">Floors inside a hall or block (e.g. Ground Floor, 1st Floor).</p>
+        </div>
+        <a href="{% url 'adminpanel:floor_add' %}" class="px-4 py-2.5 rounded-lg bg-indigo-600 text-white text-sm font-bold hover:bg-indigo-700 transition">+ Add Floor</a>
+    </div>
+
+    <form method="get" id="filter-form" class="px-6 py-4 bg-slate-50 border-b border-slate-200 flex flex-wrap items-center gap-3">
+        <input type="text" name="q" value="{{ q }}" placeholder="Search floor, block or hall…"
+               class="flex-1 min-w-[200px] px-4 py-2 rounded-lg border border-slate-300 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
+        <select name="hall" id="id_filter_hall" class="px-3 py-2 rounded-lg border border-slate-300 text-sm bg-white">
+            <option value="">All halls</option>
+            {% for h in halls %}<option value="{{ h.pk }}" {% if selected_hall == h.pk|stringformat:"s" %}selected{% endif %}>{{ h.name }}</option>{% endfor %}
+        </select>
+        <select name="block" id="id_filter_block" class="px-3 py-2 rounded-lg border border-slate-300 text-sm bg-white">
+            <option value="">All blocks</option>
+            {% for b in blocks %}<option value="{{ b.pk }}" {% if selected_block == b.pk|stringformat:"s" %}selected{% endif %}>{{ b.name }}</option>{% endfor %}
+        </select>
+        <button type="submit" class="px-4 py-2 rounded-lg bg-indigo-600 text-white text-xs font-bold hover:bg-indigo-700 transition">Filter</button>
+        {% if q or selected_hall or selected_block %}<a href="{% url 'adminpanel:floor_list' %}" class="text-xs font-semibold text-slate-500 hover:text-slate-700">Clear</a>{% endif %}
+    </form>
+
+    <div class="overflow-x-auto">
+        <table class="w-full text-sm">
+            <thead>
+                <tr class="bg-slate-50 text-slate-500 uppercase text-xs tracking-wider">
+                    <th class="px-6 py-3 text-left font-semibold">Floor Name</th>
+                    <th class="px-6 py-3 text-left font-semibold">Block</th>
+                    <th class="px-6 py-3 text-left font-semibold">Hall</th>
+                    <th class="px-6 py-3 text-left font-semibold">Color</th>
+                    <th class="px-6 py-3 text-right font-semibold">Actions</th>
+                </tr>
+            </thead>
+            <tbody class="divide-y divide-slate-100">
+                {% for obj in objects %}
+                <tr class="hover:bg-slate-50">
+                    <td class="px-6 py-3.5 font-semibold text-slate-800">
+                        <span class="inline-flex items-center gap-2">
+                            <span class="w-2.5 h-2.5 rounded-full" style="background: {{ obj.color }};"></span>
+                            {{ obj.name }}
+                        </span>
+                    </td>
+                    <td class="px-6 py-3.5 text-slate-600">{{ obj.block.name|default:'—' }}</td>
+                    <td class="px-6 py-3.5 text-slate-600">{{ obj.hall.name }}</td>
+                    <td class="px-6 py-3.5 font-mono text-xs text-slate-500">
+                        <span class="inline-flex items-center gap-1.5">
+                            <span class="w-3 h-3 rounded border border-slate-300" style="background: {{ obj.color }};"></span>
+                            {{ obj.color }}
+                        </span>
+                    </td>
+                    <td class="px-6 py-3.5 text-right space-x-2 whitespace-nowrap">
+                        <a href="{% url 'adminpanel:floor_edit' obj.pk %}" class="text-indigo-600 hover:text-indigo-800 font-semibold text-xs uppercase">Edit</a>
+                        <a href="{% url 'adminpanel:floor_delete' obj.pk %}" class="text-red-500 hover:text-red-700 font-semibold text-xs uppercase">Delete</a>
+                    </td>
+                </tr>
+                {% empty %}
+                <tr><td colspan="5" class="px-6 py-10 text-center text-slate-400">No floors found.</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% include 'adminpanel/_pagination.html' %}
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const hallSelect = document.getElementById('id_filter_hall');
+    const blockSelect = document.getElementById('id_filter_block');
+    if (!hallSelect || !blockSelect) return;
+
+    hallSelect.addEventListener('change', function() {
+        const hallId = this.value;
+        blockSelect.innerHTML = '<option value="">All blocks</option>';
+        if (!hallId) return;
+        fetch(`{% url 'adminpanel:hall_children_json' %}?hall_id=${hallId}`)
+            .then(res => res.json())
+            .then(data => {
+                data.blocks.forEach(b => {
+                    const opt = document.createElement('option');
+                    opt.value = b.id;
+                    opt.textContent = b.name;
+                    blockSelect.appendChild(opt);
+                });
+            });
+    });
+});
+</script>
+{% endblock %}

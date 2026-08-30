@@ -1,0 +1,105 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="max-w-3xl">
+    <div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+        <div class="px-6 py-5 border-b border-slate-200">
+            <h3 class="font-bold text-slate-800">{{ heading }}</h3>
+            <p class="text-sm text-slate-500">{{ object_verbose }}</p>
+        </div>
+        <form method="post" class="p-6 space-y-4">
+            {% csrf_token %}
+            {% if form.non_field_errors %}
+            <div class="px-4 py-3 rounded-lg bg-red-50 text-red-700 border border-red-200 text-sm font-medium">
+                {{ form.non_field_errors }}
+            </div>
+            {% endif %}
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {% for field in form %}
+                <div class="{% if field.field.widget.input_type == 'checkbox' %}flex items-center gap-3{% else %}space-y-1.5{% endif %} {% if field.name == 'description' or field.name == 'perm_addr' or field.name == 'pres_addr' %}md:col-span-2{% endif %}">
+                    {% if field.field.widget.input_type == 'checkbox' %}
+                        {{ field }}
+                        <label class="text-sm font-semibold text-slate-700" for="{{ field.id_for_label }}">{{ field.label }}</label>
+                    {% else %}
+                        <label class="block text-xs font-bold uppercase tracking-wide text-slate-500" for="{{ field.id_for_label }}">{{ field.label }}</label>
+                        {{ field }}
+                    {% endif %}
+                    {% if field.help_text %}<p class="text-xs text-slate-400 mt-1">{{ field.help_text|safe }}</p>{% endif %}
+                    {% for error in field.errors %}<p class="text-xs text-red-600 mt-1 font-medium">{{ error }}</p>{% endfor %}
+                </div>
+                {% endfor %}
+            </div>
+            <div class="flex items-center gap-3 pt-2">
+                <button type="submit"
+                        class="px-4 py-2.5 rounded-lg bg-indigo-600 text-white text-sm font-bold hover:bg-indigo-700 transition">
+                    Save
+                </button>
+                <a href="{{ back_url|default:success_url }}"
+                   class="px-4 py-2.5 rounded-lg bg-slate-100 text-slate-600 text-sm font-bold hover:bg-slate-200 transition">Cancel</a>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const hallSelect = document.getElementById('id_hall');
+    const blockSelect = document.getElementById('id_block');
+    const floorSelect = document.getElementById('id_floor');
+    const roomSelect = document.getElementById('id_room');
+
+    if (!hallSelect) return;
+
+    function updateDependencies(hallId) {
+        if (!hallId) return;
+        fetch(`{% url 'adminpanel:hall_children_json' %}?hall_id=${hallId}`)
+            .then(res => res.json())
+            .then(data => {
+                if (blockSelect) {
+                    const cur = blockSelect.value;
+                    blockSelect.innerHTML = '<option value="">---------</option>';
+                    data.blocks.forEach(b => {
+                        const opt = document.createElement('option');
+                        opt.value = b.id;
+                        opt.textContent = b.name;
+                        if (String(b.id) === String(cur)) opt.selected = true;
+                        blockSelect.appendChild(opt);
+                    });
+                }
+                if (floorSelect) {
+                    const cur = floorSelect.value;
+                    floorSelect.innerHTML = '<option value="">---------</option>';
+                    data.floors.forEach(f => {
+                        const opt = document.createElement('option');
+                        opt.value = f.id;
+                        opt.textContent = f.name;
+                        if (String(f.id) === String(cur)) opt.selected = true;
+                        floorSelect.appendChild(opt);
+                    });
+                }
+                if (roomSelect) {
+                    const cur = roomSelect.value;
+                    roomSelect.innerHTML = '<option value="">---------</option>';
+                    data.rooms.forEach(r => {
+                        const opt = document.createElement('option');
+                        opt.value = r.id;
+                        opt.textContent = `Room ${r.name}`;
+                        if (String(r.id) === String(cur)) opt.selected = true;
+                        roomSelect.appendChild(opt);
+                    });
+                }
+            })
+            .catch(() => {});
+    }
+
+    hallSelect.addEventListener('change', function() {
+        if (blockSelect) blockSelect.value = '';
+        if (floorSelect) floorSelect.value = '';
+        if (roomSelect) roomSelect.value = '';
+        updateDependencies(this.value);
+    });
+});
+</script>
+{% endblock %}
