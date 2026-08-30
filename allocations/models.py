@@ -94,12 +94,11 @@ class HallAllocation(models.Model):
     student_id = models.CharField(max_length=10, unique=True, db_index=True,
                                   help_text='Student who received this allotment. '
                                             'Unique across every allocation call.')
-    merit_pos = models.IntegerField(help_text='Merit position used during the allocation.')
 
     class Meta:
         verbose_name = 'Hall Allocation'
         verbose_name_plural = 'Hall Allocations'
-        ordering = ['call__call_id', 'merit_pos']
+        ordering = ['call__call_id', 'student_id']
         constraints = [
             models.UniqueConstraint(
                 fields=['student_id'],
@@ -108,7 +107,7 @@ class HallAllocation(models.Model):
         ]
 
     def __str__(self):
-        return f'{self.student_id} -> {self.hall_code} (call {self.call.call_id}, merit {self.merit_pos})'
+        return f'{self.student_id} -> {self.hall_code} (call {self.call.call_id})'
 
     def clean(self):
         from halls.models import Hall

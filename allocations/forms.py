@@ -115,7 +115,7 @@ class RevokeForm(forms.Form):
 class ImportAllocationsForm(forms.Form):
     csv_file = forms.FileField(
         label='Allocation CSV File',
-        help_text='Columns: call_id, hall_code, student_id, merit_pos — one row per allotted student.',
+        help_text='Columns: call_id, hall_code, student_id — one row per allotted student.',
         widget=forms.ClearableFileInput(attrs={
             'class': 'w-full px-4 py-3 rounded-lg border border-gray-300 '
                      'file:mr-4 file:px-4 file:py-2 file:rounded-lg file:border-0 '

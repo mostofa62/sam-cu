@@ -62,8 +62,7 @@ def _validate_allotment(seat, student_id):
         allotted_name = f'{allotted_hall.name} ({allotment.hall_code})' if allotted_hall else allotment.hall_code
         this_hall = f'{seat.hall.name} ({seat_code})'
         raise ValidationError(
-            f'Student {student_id} was allotted {allotted_name} (merit position '
-            f'{allotment.merit_pos}, call {active_call.call_id}) — not {this_hall}. '
+            f'Student {student_id} was allotted {allotted_name} (call {active_call.call_id}) — not {this_hall}. '
             f'The allotted hall must match before a seat can be assigned here.'
         )
     return allotment

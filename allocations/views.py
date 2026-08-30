@@ -396,13 +396,31 @@ def allotments(request):
             HallAllocation.objects
             .filter(call=selected, hall_code__in=visible_codes)
             .select_related('call')
-            .order_by('merit_pos')
+            .order_by('student_id')
         )
-        names = dict(Student.objects.filter(
-            student_id__in=[a.student_id for a in allotment_rows],
-        ).values_list('student_id', 'name_en'))
+        student_map = {
+            s.student_id: s
+            for s in Student.objects.filter(
+                student_id__in=[a.student_id for a in allotment_rows]
+            ).only('student_id', 'name_en', 'subject_code', 'subject')
+        }
         for allotment in allotment_rows:
-            allotment.student_name = names.get(allotment.student_id)
+            stu = student_map.get(allotment.student_id)
+            allotment.student_name = stu.name_en if stu else None
+            allotment.subject_code = stu.subject_code if stu else None
+            allotment.subject = stu.subject if stu else None
+
+        # CSV export includes subject details
+        if request.GET.get('export') == 'csv':
+            import csv
+            from django.http import HttpResponse
+            resp = HttpResponse(content_type='text/csv')
+            resp['Content-Disposition'] = f'attachment; filename="allotments_{selected.call_id}.csv"'
+            w = csv.writer(resp)
+            w.writerow(['student_id', 'student_name', 'subject_code', 'subject', 'hall_code', 'call_id'])
+            for a in allotment_rows:
+                w.writerow([a.student_id, a.student_name or '', a.subject_code or '', a.subject or '', a.hall_code, selected.call_id])
+            return resp
 
     context = {
         'page_title': 'Hall Allotments',
@@ -445,9 +463,9 @@ def delete_allotments(request):
     rows = list(
         HallAllocation.objects.filter(pk__in=ids)
         .select_related('call')
-        .order_by('call__call_id', 'merit_pos')
+        .order_by('call__call_id', 'student_id')
     )
-    references = [f'{row.student_id} (call {row.call.call_id}, hall {row.hall_code}, merit {row.merit_pos})'
+    references = [f'{row.student_id} (call {row.call.call_id}, hall {row.hall_code})'
                   for row in rows]
     shown = ', '.join(references[:5]) + ('…' if len(references) > 5 else '')
     for row in rows:

@@ -682,7 +682,7 @@ class CallListView(AdminPanelRequiredMixin, FormView):
 class StudentListView(CursorFilterListView):
     model = Student
     template_name = 'adminpanel/student_list.html'
-    search_fields = ('student_id', 'name_en', 'name_bn', 'session', 'phone', 'nid')
+    search_fields = ('student_id', 'name_en', 'name_bn', 'session', 'phone', 'nid', 'subject_code', 'subject')
     order_field = 'student_id'
     reverse_order = False
 
@@ -698,6 +698,14 @@ class StudentListView(CursorFilterListView):
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         context['state'] = self.request.GET.get('state', '')
+        qs = self.get_queryset()
+        context['total_students'] = Student.objects.count()
+        # filtered count respects search + status filters; cheap count() on filtered QS
+        try:
+            context['filtered_count'] = qs.count()
+        except Exception:
+            context['filtered_count'] = None
+        context['page_title'] = 'Students'
         return context
 
 

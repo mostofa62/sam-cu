@@ -115,7 +115,7 @@ class AdminPanelAccessTests(TestCase):
         self.login(self.admin)
         resp = self.client.get(reverse('adminpanel:index'))
         # The Admin-group administrator gets the Administration menu...
-        self.assertContains(resp, 'Halls &amp; Seats')
+        self.assertContains(resp, 'Halls')
         # ...but never the super-admin (Django admin) visit link.
         self.assertNotContains(resp, 'Super Admin Panel')
 

@@ -13,7 +13,7 @@ from .models import Student
 # Fields the external system owns — pulled values overwrite local edits for
 # these columns only; everything else stays untouched.
 PULL_FIELDS = (
-    'session', 'entity_id', 'subject_id', 'name_en', 'name_bn', 'gender',
+    'session', 'entity_id', 'subject_id', 'subject_code', 'subject', 'name_en', 'name_bn', 'gender',
     'religion', 'dob_ymd', 'bloodgroup', 'nationality', 'nid', 'phone',
     'fname_en', 'fphone', 'mname_en', 'mphone',
     'perm_addr', 'perm_dist', 'pres_addr', 'pres_dist',

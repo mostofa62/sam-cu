@@ -1,4 +1,3 @@
-from django.conf import settings
 from django.db import models
 
 
@@ -18,11 +17,12 @@ class Student(models.Model):
     adm_roll = models.CharField(max_length=6, null=True, blank=True)
     hsc_group = models.CharField(max_length=3, null=True, blank=True)
     adm_merit = models.CharField(max_length=5, null=True, blank=True)
-    user_id = models.IntegerField(blank=True, null=True)  # This field is a placeholder for the user ID, which may be linked to an actual User model in the future.
     username = models.CharField(max_length=11, null=True, blank=True)
     session = models.CharField(max_length=9, null=True, blank=True)
     entity_id = models.CharField(max_length=5, null=True, blank=True)
     subject_id = models.CharField(max_length=5, null=True, blank=True)
+    subject_code = models.CharField(max_length=6, null=True, blank=True)
+    subject = models.CharField(max_length=150, null=True, blank=True)
     name_en = models.CharField(max_length=90, null=True, blank=True)
     name_bn = models.CharField(max_length=90, null=True, blank=True)
     gender = models.CharField(max_length=6, null=True, blank=True)

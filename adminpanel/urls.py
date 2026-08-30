@@ -46,10 +46,9 @@ urlpatterns = [
 
     # Students
     path('students/', views.StudentListView.as_view(), name='student_list'),
-    path('students/add/', views.StudentCreateView.as_view(), name='student_add'),
     path('students/<int:pk>/edit/', views.StudentUpdateView.as_view(), name='student_edit'),
     path('students/<int:pk>/delete/', views.StudentDeleteView.as_view(), name='student_delete'),
-    path('students/pull/', views.StudentPullView.as_view(), name='student_pull'),
+    # path('students/pull/', views.StudentPullView.as_view(), name='student_pull'),  # disabled for now — will be used later
 
     # Allocation calls
     path('allocation-calls/', views.CallListView.as_view(), name='call_list'),
