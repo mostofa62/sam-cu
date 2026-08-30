@@ -1,0 +1,89 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+    <div class="px-6 py-5 border-b border-slate-200 flex flex-wrap items-center justify-between gap-3">
+        <div>
+            <h3 class="font-bold text-slate-800">{{ page_title }}</h3>
+            <p class="text-sm text-slate-500">
+                {% if is_super_admin %}
+                Manage Super Administrators, Administrators, and Hall Managers.
+                {% else %}
+                Manage hall manager accounts for each hall.
+                {% endif %}
+            </p>
+        </div>
+        <a href="{% url 'adminpanel:user_add' %}" class="px-4 py-2.5 rounded-lg bg-indigo-600 text-white text-sm font-bold hover:bg-indigo-700 transition">+ Add Hall Manager</a>
+    </div>
+
+    <form method="get" class="px-6 py-4 bg-slate-50 border-b border-slate-200 flex flex-wrap items-center gap-3">
+        <input type="text" name="q" value="{{ q }}" placeholder="Search name, email, phone or hall…"
+               class="flex-1 min-w-[200px] px-4 py-2 rounded-lg border border-slate-300 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
+        {% if is_super_admin %}
+        <select name="role" class="px-3 py-2 rounded-lg border border-slate-300 text-sm bg-white">
+            <option value="">All roles</option>
+            <option value="superuser" {% if selected_role == 'superuser' %}selected{% endif %}>Super Administrators</option>
+            <option value="admin" {% if selected_role == 'admin' %}selected{% endif %}>Administrators</option>
+            <option value="manager" {% if selected_role == 'manager' %}selected{% endif %}>Hall Managers</option>
+        </select>
+        {% endif %}
+        <button type="submit" class="px-4 py-2 rounded-lg bg-indigo-600 text-white text-xs font-bold hover:bg-indigo-700 transition">Search</button>
+        {% if q or selected_role %}<a href="{% url 'adminpanel:user_list' %}" class="text-xs font-semibold text-slate-500 hover:text-slate-700">Clear</a>{% endif %}
+    </form>
+
+    <div class="overflow-x-auto">
+        <table class="w-full text-sm">
+            <thead>
+                <tr class="bg-slate-50 text-slate-500 uppercase text-xs tracking-wider">
+                    <th class="px-6 py-3 text-left font-semibold">User</th>
+                    <th class="px-6 py-3 text-left font-semibold">Email / Phone</th>
+                    {% if is_super_admin %}
+                    <th class="px-6 py-3 text-left font-semibold">Role</th>
+                    {% endif %}
+                    <th class="px-6 py-3 text-left font-semibold">Managed Hall</th>
+                    <th class="px-6 py-3 text-left font-semibold">Status</th>
+                    <th class="px-6 py-3 text-right font-semibold">Actions</th>
+                </tr>
+            </thead>
+            <tbody class="divide-y divide-slate-100">
+                {% for obj in objects %}
+                <tr class="hover:bg-slate-50">
+                    <td class="px-6 py-3.5 font-semibold text-slate-800">{{ obj.full_name|default:'—' }}</td>
+                    <td class="px-6 py-3.5 text-slate-600">{{ obj.email|default:'—' }}<br><span class="text-xs text-slate-400">{{ obj.phone|default:'' }}</span></td>
+                    {% if is_super_admin %}
+                    <td class="px-6 py-3.5 space-x-1">
+                        {% if obj.is_superuser %}
+                        <span class="text-[11px] font-bold uppercase bg-rose-100 text-rose-700 px-2 py-0.5 rounded-full">Super Admin</span>
+                        {% elif obj.in_admin_group %}
+                        <span class="text-[11px] font-bold uppercase bg-indigo-100 text-indigo-700 px-2 py-0.5 rounded-full">Admin</span>
+                        {% elif obj.managed_hall %}
+                        <span class="text-[11px] font-bold uppercase bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded-full">Hall Manager</span>
+                        {% else %}
+                        <span class="text-slate-400 text-xs">User</span>
+                        {% endif %}
+                    </td>
+                    {% endif %}
+                    <td class="px-6 py-3.5 text-slate-600">{{ obj.managed_hall.name|default:'—' }}</td>
+                    <td class="px-6 py-3.5">
+                        {% if obj.is_active %}
+                        <span class="text-[11px] font-bold uppercase bg-emerald-50 text-emerald-600 px-2 py-0.5 rounded-full">Active</span>
+                        {% else %}
+                        <span class="text-[11px] font-bold uppercase bg-slate-100 text-slate-500 px-2 py-0.5 rounded-full">Disabled</span>
+                        {% endif %}
+                    </td>
+                    <td class="px-6 py-3.5 text-right space-x-2 whitespace-nowrap">
+                        <a href="{% url 'adminpanel:user_edit' obj.pk %}" class="text-indigo-600 hover:text-indigo-800 font-semibold text-xs uppercase">Edit</a>
+                        {% if is_super_admin or not obj.is_superuser and not obj.in_admin_group %}
+                        <a href="{% url 'adminpanel:user_delete' obj.pk %}" class="text-red-500 hover:text-red-700 font-semibold text-xs uppercase">Delete</a>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% empty %}
+                <tr><td colspan="{% if is_super_admin %}6{% else %}5{% endif %}" class="px-6 py-10 text-center text-slate-400">No records found.</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% include 'adminpanel/_pagination.html' %}
+</div>
+{% endblock %}

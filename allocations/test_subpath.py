@@ -47,7 +47,9 @@ class SubPathServeTests(TestCase):
         # Links must carry the /sam prefix...
         self.assertContains(resp, '/sam/allocations/assignments/')
         self.assertContains(resp, '/sam/allocations/revoke/')
-        self.assertContains(resp, '/sam/admin/')
+        # ...the Django admin link is superuser-only, so a hall manager never
+        # sees it (they administer through /manage/ if promoted to Admin).
+        self.assertNotContains(resp, '/sam/admin/')
         # ...and static assets must too.
         self.assertContains(resp, '/sam/static/')
 

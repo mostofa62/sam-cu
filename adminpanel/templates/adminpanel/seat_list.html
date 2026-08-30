@@ -1,0 +1,100 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+    <div class="px-6 py-5 border-b border-slate-200 flex flex-wrap items-center justify-between gap-3">
+        <div>
+            <h3 class="font-bold text-slate-800">Seats</h3>
+            <p class="text-sm text-slate-500">Physical seats in each room. Use Disable rather than Delete to preserve history.</p>
+        </div>
+        <a href="{% url 'adminpanel:seat_add' %}" class="px-4 py-2.5 rounded-lg bg-indigo-600 text-white text-sm font-bold hover:bg-indigo-700 transition">+ Add Seat</a>
+    </div>
+
+    <form method="get" id="filter-form" class="px-6 py-4 bg-slate-50 border-b border-slate-200 flex flex-wrap items-center gap-3">
+        <input type="text" name="q" value="{{ q }}" placeholder="Search seat, room, or hall…"
+               class="flex-1 min-w-[180px] px-4 py-2 rounded-lg border border-slate-300 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
+        <select name="hall" id="id_filter_hall" class="px-3 py-2 rounded-lg border border-slate-300 text-sm bg-white">
+            <option value="">All halls</option>
+            {% for h in halls %}<option value="{{ h.pk }}" {% if selected_hall == h.pk|stringformat:"s" %}selected{% endif %}>{{ h.name }}</option>{% endfor %}
+        </select>
+        <select name="room" id="id_filter_room" class="px-3 py-2 rounded-lg border border-slate-300 text-sm bg-white">
+            <option value="">All rooms</option>
+            {% for r in rooms %}<option value="{{ r.pk }}" {% if selected_room == r.pk|stringformat:"s" %}selected{% endif %}>Room {{ r.name }}</option>{% endfor %}
+        </select>
+        <select name="state" class="px-3 py-2 rounded-lg border border-slate-300 text-sm bg-white">
+            <option value="">All states</option>
+            <option value="active" {% if state == 'active' %}selected{% endif %}>Active</option>
+            <option value="disabled" {% if state == 'disabled' %}selected{% endif %}>Disabled</option>
+        </select>
+        <button type="submit" class="px-4 py-2 rounded-lg bg-indigo-600 text-white text-xs font-bold hover:bg-indigo-700 transition">Filter</button>
+        {% if q or selected_hall or selected_room or state %}<a href="{% url 'adminpanel:seat_list' %}" class="text-xs font-semibold text-slate-500 hover:text-slate-700">Clear</a>{% endif %}
+    </form>
+
+    <div class="overflow-x-auto">
+        <table class="w-full text-sm">
+            <thead>
+                <tr class="bg-slate-50 text-slate-500 uppercase text-xs tracking-wider">
+                    <th class="px-6 py-3 text-left font-semibold">Seat Number</th>
+                    <th class="px-6 py-3 text-left font-semibold">Room / Floor</th>
+                    <th class="px-6 py-3 text-left font-semibold">Hall</th>
+                    <th class="px-6 py-3 text-left font-semibold">State</th>
+                    <th class="px-6 py-3 text-right font-semibold">Actions</th>
+                </tr>
+            </thead>
+            <tbody class="divide-y divide-slate-100">
+                {% for obj in objects %}
+                <tr class="hover:bg-slate-50">
+                    <td class="px-6 py-3.5 font-mono font-bold text-slate-800">Seat {{ obj.seat_number }}</td>
+                    <td class="px-6 py-3.5 text-slate-600">{{ obj.room }}</td>
+                    <td class="px-6 py-3.5 text-slate-600">{{ obj.hall.name }}</td>
+                    <td class="px-6 py-3.5 space-x-1">
+                        {% if not obj.is_active %}
+                        <span class="text-[11px] font-bold uppercase bg-slate-200 text-slate-600 px-2 py-0.5 rounded-full">Disabled</span>
+                        {% elif obj.under_maintenance %}
+                        <span class="text-[11px] font-bold uppercase bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full">On hold</span>
+                        {% elif obj.is_allotted %}
+                        <span class="text-[11px] font-bold uppercase bg-indigo-100 text-indigo-700 px-2 py-0.5 rounded-full">Allotted</span>
+                        {% else %}
+                        <span class="text-[11px] font-bold uppercase bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded-full">Vacant</span>
+                        {% endif %}
+                    </td>
+                    <td class="px-6 py-3.5 text-right space-x-2 whitespace-nowrap">
+                        <a href="{% url 'adminpanel:seat_edit' obj.pk %}" class="text-indigo-600 hover:text-indigo-800 font-semibold text-xs uppercase">Edit</a>
+                        <a href="{% url 'adminpanel:seat_delete' obj.pk %}" class="text-red-500 hover:text-red-700 font-semibold text-xs uppercase">Delete</a>
+                    </td>
+                </tr>
+                {% empty %}
+                <tr><td colspan="5" class="px-6 py-10 text-center text-slate-400">No seats found.</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% include 'adminpanel/_pagination.html' %}
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const hallSelect = document.getElementById('id_filter_hall');
+    const roomSelect = document.getElementById('id_filter_room');
+    if (!hallSelect || !roomSelect) return;
+
+    hallSelect.addEventListener('change', function() {
+        const hallId = this.value;
+        roomSelect.innerHTML = '<option value="">All rooms</option>';
+        if (!hallId) return;
+        fetch(`{% url 'adminpanel:hall_children_json' %}?hall_id=${hallId}`)
+            .then(res => res.json())
+            .then(data => {
+                data.rooms.forEach(r => {
+                    const opt = document.createElement('option');
+                    opt.value = r.id;
+                    opt.textContent = `Room ${r.name}`;
+                    roomSelect.appendChild(opt);
+                });
+            });
+    });
+});
+</script>
+{% endblock %}

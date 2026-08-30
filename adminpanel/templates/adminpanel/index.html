@@ -1,0 +1,108 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="space-y-8">
+
+    <!-- Quick stats -->
+    <div class="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-4">
+        {% include 'adminpanel/_stat.html' with label='Halls' value=hall_count color='indigo' icon='M3 21h18M5 21V7l7-4 7 4v14' %}
+        {% include 'adminpanel/_stat.html' with label='Blocks' value=block_count color='sky' icon='M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10' %}
+        {% include 'adminpanel/_stat.html' with label='Floors' value=floor_count color='amber' icon='M3 4h18M3 10h18M3 16h18M3 22h18' %}
+        {% include 'adminpanel/_stat.html' with label='Rooms' value=room_count color='violet' icon='M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6' %}
+        {% include 'adminpanel/_stat.html' with label='Seats' value=seat_count color='emerald' icon='M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z' %}
+        {% include 'adminpanel/_stat.html' with label='Students' value=student_count color='rose' icon='M12 14l9-5-9-5-9 5 9 5zm0 0l6.16-3.42A12 12 0 0112 21a12 12 0 01-6.16-10.42L12 14z' %}
+    </div>
+
+    <!-- Halls List Card -->
+    <div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+        <div class="px-6 py-4 border-b border-slate-200 flex items-center justify-between">
+            <div>
+                <h3 class="font-bold text-slate-800">Halls</h3>
+                <p class="text-sm text-slate-500">Overview of student halls.</p>
+            </div>
+            <div class="flex items-center gap-2">
+                <a href="{% url 'adminpanel:hall_add' %}" class="px-3 py-2 rounded-lg bg-indigo-600 text-white text-xs font-bold hover:bg-indigo-700 transition">+ Add Hall</a>
+                <a href="{% url 'adminpanel:hall_list' %}" class="px-3 py-2 rounded-lg bg-slate-100 text-slate-600 text-xs font-bold hover:bg-slate-200 transition">View All Halls →</a>
+            </div>
+        </div>
+        <div class="overflow-x-auto">
+            <table class="w-full text-sm">
+                <thead>
+                    <tr class="bg-slate-50 text-slate-500 uppercase text-xs tracking-wider">
+                        <th class="px-6 py-3 text-left font-semibold">Hall</th>
+                        <th class="px-6 py-3 text-left font-semibold">Code</th>
+                        <th class="px-6 py-3 text-left font-semibold">Type</th>
+                        <th class="px-6 py-3 text-left font-semibold">Minority</th>
+                        <th class="px-6 py-3 text-right font-semibold">Actions</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-slate-100">
+                    {% for hall in halls %}
+                    <tr class="hover:bg-slate-50">
+                        <td class="px-6 py-3.5">
+                            <span class="inline-flex items-center gap-2 font-semibold text-slate-800">
+                                <span class="w-2.5 h-2.5 rounded-full" style="background: {{ hall.color }};"></span>
+                                {{ hall.name }}
+                            </span>
+                        </td>
+                        <td class="px-6 py-3.5 font-mono text-slate-600">{{ hall.code|default:'—' }}</td>
+                        <td class="px-6 py-3.5 text-slate-600">{{ hall.get_hall_type_display }}</td>
+                        <td class="px-6 py-3.5">
+                            {% if hall.minority == 'Y' %}
+                            <span class="text-[11px] font-bold uppercase bg-fuchsia-100 text-fuchsia-700 px-2 py-0.5 rounded-full">Yes</span>
+                            {% else %}
+                            <span class="text-slate-400 text-xs">No</span>
+                            {% endif %}
+                        </td>
+                        <td class="px-6 py-3.5 text-right space-x-2 whitespace-nowrap">
+                            <a href="{% url 'adminpanel:hall_edit' hall.pk %}" class="text-indigo-600 hover:text-indigo-800 font-semibold text-xs uppercase">Edit</a>
+                            <a href="{% url 'adminpanel:hall_delete' hall.pk %}" class="text-red-500 hover:text-red-700 font-semibold text-xs uppercase">Delete</a>
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr><td colspan="5" class="px-6 py-10 text-center text-slate-400">No halls yet — create the first one.</td></tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- Shortcuts -->
+    <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
+        <a href="{% url 'adminpanel:block_list' %}" class="block bg-white rounded-xl shadow-sm border border-slate-200 p-5 hover:border-indigo-300 transition">
+            <h4 class="font-bold text-slate-800">Blocks</h4>
+            <p class="text-sm text-slate-500 mt-1">Manage hall blocks and sections.</p>
+        </a>
+        <a href="{% url 'adminpanel:floor_list' %}" class="block bg-white rounded-xl shadow-sm border border-slate-200 p-5 hover:border-indigo-300 transition">
+            <h4 class="font-bold text-slate-800">Floors</h4>
+            <p class="text-sm text-slate-500 mt-1">Manage floors within halls/blocks.</p>
+        </a>
+        <a href="{% url 'adminpanel:room_list' %}" class="block bg-white rounded-xl shadow-sm border border-slate-200 p-5 hover:border-indigo-300 transition">
+            <h4 class="font-bold text-slate-800">Rooms</h4>
+            <p class="text-sm text-slate-500 mt-1">Manage rooms and capacities.</p>
+        </a>
+        <a href="{% url 'adminpanel:seat_list' %}" class="block bg-white rounded-xl shadow-sm border border-slate-200 p-5 hover:border-indigo-300 transition">
+            <h4 class="font-bold text-slate-800">Seats</h4>
+            <p class="text-sm text-slate-500 mt-1">Manage physical seats.</p>
+        </a>
+        <a href="{% url 'adminpanel:user_list' %}" class="block bg-white rounded-xl shadow-sm border border-slate-200 p-5 hover:border-indigo-300 transition">
+            <h4 class="font-bold text-slate-800">Hall Managers</h4>
+            <p class="text-sm text-slate-500 mt-1">Add or edit hall manager accounts.</p>
+        </a>
+        <a href="{% url 'adminpanel:call_list' %}" class="block bg-white rounded-xl shadow-sm border border-slate-200 p-5 hover:border-indigo-300 transition">
+            <h4 class="font-bold text-slate-800">Allocation Calls
+                {% if active_call %}<span class="align-middle ml-1 text-[11px] font-bold uppercase bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded-full">Active {{ active_call.call_id }}</span>{% endif %}
+            </h4>
+            <p class="text-sm text-slate-500 mt-1">Import and manage merit-list allocation cycles.</p>
+        </a>
+        <a href="{% url 'adminpanel:student_list' %}" class="block bg-white rounded-xl shadow-sm border border-slate-200 p-5 hover:border-indigo-300 transition">
+            <h4 class="font-bold text-slate-800">Students</h4>
+            <p class="text-sm text-slate-500 mt-1">Pull and manage master student records.</p>
+        </a>
+        <a href="{% url 'adminpanel:assignment_list' %}" class="block bg-white rounded-xl shadow-sm border border-slate-200 p-5 hover:border-indigo-300 transition">
+            <h4 class="font-bold text-slate-800">Seat Assignments</h4>
+            <p class="text-sm text-slate-500 mt-1">Active and released seat assignments.</p>
+        </a>
+    </div>
+</div>
+{% endblock %}

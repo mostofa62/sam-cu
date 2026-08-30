@@ -1,10 +1,12 @@
 from django.contrib import admin
 
+from hsm.admin_site import hsm_admin_site
+
 from .models import (ActionChoices, AllocationCall, HallAllocation, SeatAssignment,
                      SeatAssignmentLog, SeatMaintenance, SeatReleaseReason)
 
 
-@admin.register(AllocationCall)
+@admin.register(AllocationCall, site=hsm_admin_site)
 class AllocationCallAdmin(admin.ModelAdmin):
     list_display = ('call_id', 'year', 'sequence', 'is_active', 'allotment_count',
                     'imported_by', 'imported_at')
@@ -24,7 +26,7 @@ class AllocationCallAdmin(admin.ModelAdmin):
         super().save_model(request, obj, form, change)
 
 
-@admin.register(HallAllocation)
+@admin.register(HallAllocation, site=hsm_admin_site)
 class HallAllocationAdmin(admin.ModelAdmin):
     list_display = ('student_id', 'hall_code', 'merit_pos', 'call', 'call_active')
     list_filter = ('call__is_active', 'call', 'hall_code')
@@ -35,7 +37,7 @@ class HallAllocationAdmin(admin.ModelAdmin):
         return obj.call.is_active
 
 
-@admin.register(SeatReleaseReason)
+@admin.register(SeatReleaseReason, site=hsm_admin_site)
 class SeatReleaseReasonAdmin(admin.ModelAdmin):
     list_display = ('name', 'is_active', 'sort_order')
     list_filter = ('is_active',)
@@ -43,7 +45,7 @@ class SeatReleaseReasonAdmin(admin.ModelAdmin):
     list_editable = ('is_active', 'sort_order')
 
 
-@admin.register(SeatAssignment)
+@admin.register(SeatAssignment, site=hsm_admin_site)
 class SeatAssignmentAdmin(admin.ModelAdmin):
     list_display = (
         'student_id', 'seat', 'order', 'is_active', 'assigned_at', 'released_at', 'released_reason',
@@ -66,7 +68,7 @@ class SeatAssignmentAdmin(admin.ModelAdmin):
         )
 
 
-@admin.register(SeatAssignmentLog)
+@admin.register(SeatAssignmentLog, site=hsm_admin_site)
 class SeatAssignmentLogAdmin(admin.ModelAdmin):
     list_display = ('action', 'student_id', 'seat', 'order', 'release_reason',
                     'performed_by', 'created_at')
@@ -85,7 +87,7 @@ class SeatAssignmentLogAdmin(admin.ModelAdmin):
         return False
 
 
-@admin.register(SeatMaintenance)
+@admin.register(SeatMaintenance, site=hsm_admin_site)
 class SeatMaintenanceAdmin(admin.ModelAdmin):
     list_display = ('seat', 'reason', 'is_active', 'started_at', 'ended_at')
     list_filter = ('is_active', 'seat__hall')

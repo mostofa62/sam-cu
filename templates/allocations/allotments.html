@@ -70,7 +70,7 @@
                 Allotments — Call <span class="font-mono">{{ selected_call.call_id|default:'—' }}</span>
             </h4>
             <div class="flex items-center gap-3">
-                {% if request.user.is_superuser and allotments %}
+                {% if request.user.is_app_admin and allotments %}
                 <span id="del-count-badge"
                       class="hidden sm:inline-flex items-center gap-1.5 text-xs font-semibold text-slate-500 bg-slate-100 px-2.5 py-1 rounded-full">
                     <span id="del-count">0</span> selected
@@ -92,7 +92,7 @@
         <table class="w-full text-sm">
             <thead>
                 <tr class="text-left text-[11px] uppercase tracking-wide text-slate-400 border-b border-slate-200">
-                    {% if request.user.is_superuser %}
+                    {% if request.user.is_app_admin %}
                     <th class="px-5 py-2.5 w-10"><input type="checkbox" id="select-all"
                         class="w-4 h-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 cursor-pointer"
                         title="Select all rows on this page"></th>
@@ -101,7 +101,7 @@
                     <th class="px-5 py-2.5 font-semibold">Student ID</th>
                     <th class="px-5 py-2.5 font-semibold">Name</th>
                     <th class="px-5 py-2.5 font-semibold">Allotted Hall Code</th>
-                    {% if request.user.is_superuser %}
+                    {% if request.user.is_app_admin %}
                     <th class="px-5 py-2.5 font-semibold text-right">Remove</th>
                     {% endif %}
                 </tr>
@@ -114,7 +114,7 @@
                     data-call="{{ allotment.call.call_id }}"
                     data-hall="{{ allotment.hall_code }}"
                     data-merit="{{ allotment.merit_pos }}">
-                    {% if request.user.is_superuser %}
+                    {% if request.user.is_app_admin %}
                     <td class="px-5 py-2.5">
                         <input type="checkbox" name="ids" value="{{ allotment.pk }}"
                                class="w-4 h-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 cursor-pointer row-check">
@@ -124,7 +124,7 @@
                     <td class="px-5 py-2.5 font-mono font-semibold text-slate-700">{{ allotment.student_id }}</td>
                     <td class="px-5 py-2.5 text-slate-600">{{ allotment.student_name|default:'—' }}</td>
                     <td class="px-5 py-2.5 font-mono">{{ allotment.hall_code }}</td>
-                    {% if request.user.is_superuser %}
+                    {% if request.user.is_app_admin %}
                     <td class="px-5 py-2.5 text-right">
                         <button type="button" title="Delete this allotment row"
                                 class="row-del inline-flex items-center justify-center w-8 h-8 rounded-lg text-slate-400 hover:text-red-600 hover:bg-red-50 opacity-0 group-hover:opacity-100 focus:opacity-100 transition">
@@ -152,7 +152,7 @@
 {% endblock %}
 
 {% block scripts %}
-{% if request.user.is_superuser and allotments %}
+{% if request.user.is_app_admin and allotments %}
 <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
 <script>
 (function () {

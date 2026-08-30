@@ -1,11 +1,13 @@
 from django.contrib import admin
 from django.contrib.auth.admin import UserAdmin as BaseUserAdmin
 
+from hsm.admin_site import hsm_admin_site
+
 from .forms import UserChangeForm, UserCreationForm
 from .models import User
 
 
-@admin.register(User)
+@admin.register(User, site=hsm_admin_site)
 class UserAdmin(BaseUserAdmin):
     add_form = UserCreationForm
     form = UserChangeForm

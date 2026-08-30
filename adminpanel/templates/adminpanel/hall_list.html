@@ -1,0 +1,71 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+    <div class="px-6 py-5 border-b border-slate-200 flex flex-wrap items-center justify-between gap-3">
+        <div>
+            <h3 class="font-bold text-slate-800">Halls</h3>
+            <p class="text-sm text-slate-500">Add, edit, or delete halls.</p>
+        </div>
+        <a href="{% url 'adminpanel:hall_add' %}" class="px-4 py-2.5 rounded-lg bg-indigo-600 text-white text-sm font-bold hover:bg-indigo-700 transition">+ Add Hall</a>
+    </div>
+
+    <form method="get" class="px-6 py-4 bg-slate-50 border-b border-slate-200 flex flex-wrap items-center gap-3">
+        <input type="text" name="q" value="{{ q }}" placeholder="Search name or code…"
+               class="flex-1 min-w-[200px] px-4 py-2 rounded-lg border border-slate-300 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
+        <button type="submit" class="px-4 py-2 rounded-lg bg-indigo-600 text-white text-xs font-bold hover:bg-indigo-700 transition">Search</button>
+        {% if q %}<a href="{% url 'adminpanel:hall_list' %}" class="text-xs font-semibold text-slate-500 hover:text-slate-700">Clear</a>{% endif %}
+    </form>
+
+    <div class="overflow-x-auto">
+        <table class="w-full text-sm">
+            <thead>
+                <tr class="bg-slate-50 text-slate-500 uppercase text-xs tracking-wider">
+                    <th class="px-6 py-3 text-left font-semibold">Hall Name</th>
+                    <th class="px-6 py-3 text-left font-semibold">Code</th>
+                    <th class="px-6 py-3 text-left font-semibold">Type</th>
+                    <th class="px-6 py-3 text-left font-semibold">Minority</th>
+                    <th class="px-6 py-3 text-left font-semibold">Color</th>
+                    <th class="px-6 py-3 text-left font-semibold">Description</th>
+                    <th class="px-6 py-3 text-right font-semibold">Actions</th>
+                </tr>
+            </thead>
+            <tbody class="divide-y divide-slate-100">
+                {% for obj in objects %}
+                <tr class="hover:bg-slate-50">
+                    <td class="px-6 py-3.5">
+                        <span class="inline-flex items-center gap-2 font-semibold text-slate-800">
+                            <span class="w-3 h-3 rounded-full flex-shrink-0" style="background: {{ obj.color }};"></span>
+                            {{ obj.name }}
+                        </span>
+                    </td>
+                    <td class="px-6 py-3.5 font-mono text-slate-600">{{ obj.code|default:'—' }}</td>
+                    <td class="px-6 py-3.5 text-slate-600">{{ obj.get_hall_type_display }}</td>
+                    <td class="px-6 py-3.5">
+                        {% if obj.minority == 'Y' %}
+                        <span class="text-[11px] font-bold uppercase bg-fuchsia-100 text-fuchsia-700 px-2 py-0.5 rounded-full">Yes</span>
+                        {% else %}
+                        <span class="text-slate-400 text-xs">No</span>
+                        {% endif %}
+                    </td>
+                    <td class="px-6 py-3.5 font-mono text-xs text-slate-500">
+                        <span class="inline-flex items-center gap-1.5">
+                            <span class="w-3 h-3 rounded border border-slate-300" style="background: {{ obj.color }};"></span>
+                            {{ obj.color }}
+                        </span>
+                    </td>
+                    <td class="px-6 py-3.5 text-slate-500 max-w-xs truncate" title="{{ obj.description }}">{{ obj.description|default:'—' }}</td>
+                    <td class="px-6 py-3.5 text-right space-x-2 whitespace-nowrap">
+                        <a href="{% url 'adminpanel:hall_edit' obj.pk %}" class="text-indigo-600 hover:text-indigo-800 font-semibold text-xs uppercase">Edit</a>
+                        <a href="{% url 'adminpanel:hall_delete' obj.pk %}" class="text-red-500 hover:text-red-700 font-semibold text-xs uppercase">Delete</a>
+                    </td>
+                </tr>
+                {% empty %}
+                <tr><td colspan="7" class="px-6 py-10 text-center text-slate-400">No halls found.</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% include 'adminpanel/_pagination.html' %}
+</div>
+{% endblock %}
