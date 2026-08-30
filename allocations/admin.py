@@ -28,7 +28,7 @@ class AllocationCallAdmin(admin.ModelAdmin):
 
 @admin.register(HallAllocation, site=hsm_admin_site)
 class HallAllocationAdmin(admin.ModelAdmin):
-    list_display = ('student_id', 'hall_code', 'merit_pos', 'call', 'call_active')
+    list_display = ('student_id', 'hall_code', 'call', 'call_active')
     list_filter = ('call__is_active', 'call', 'hall_code')
     search_fields = ('student_id', 'hall_code')
 

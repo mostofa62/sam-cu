@@ -2,22 +2,22 @@
 
 Expected header row (order-insensitive, BOM tolerated):
 
-    call_id,hall_code,student_id,merit_pos
-    202601,HALALA,2101CSE001,124
+    call_id,hall_code,student_id
+    202601,HALALA,2101CSE001
 
 Import rules:
 - One single ``call_id`` per file; format ``YYYYNN`` (e.g. 202601).
 - Every ``hall_code`` must exist in the halls table; a hall manager may only
-  import rows whose code matches the hall they manage.
-- ``merit_pos`` must be an integer; one row per student within the file.
+- import rows whose code matches the hall they manage.
+- One row per student within the file.
 - A ``student_id`` must be unique across ALL calls: if the student was already
-  allotted in any earlier call, the import is rejected with a reference to
-  that call (hall + merit position + row number). Re-importing the SAME call
-  updates its own rows instead.
+- allotted in any earlier call, the import is rejected with a reference to
+- that call (hall + row number). Re-importing the SAME call
+- updates its own rows instead.
 - Activation policy: the FIRST-ever import is activated automatically (nothing
-  to compare against). Any later import stays INACTIVE on purpose — activating
-  it is a deliberate admin decision ("Set Active"), so a wrong file can never
-  silently become the assignment source.
+- to compare against). Any later import stays INACTIVE on purpose — activating
+- it is a deliberate admin decision ("Set Active"), so a wrong file can never
+- silently become the assignment source.
 """
 
 import csv
@@ -31,7 +31,7 @@ from halls.models import Hall
 
 from .models import AllocationCall, HallAllocation
 
-REQUIRED_HEADERS = ['call_id', 'hall_code', 'student_id', 'merit_pos']
+REQUIRED_HEADERS = ['call_id', 'hall_code', 'student_id']
 
 
 def _rows(fileobj):
@@ -68,7 +68,6 @@ def import_allocations(fileobj, acting_user=None):
         call_id = row.get('call_id', '')
         hall_code = row.get('hall_code', '').upper()
         student_id = row.get('student_id', '')
-        merit_raw = row.get('merit_pos', '')
 
         try:
             year, sequence = AllocationCall.parse_call_id(call_id)
@@ -92,15 +91,8 @@ def import_allocations(fileobj, acting_user=None):
             errors.append(f'Row {line_no}: hall_code is required.')
             continue
 
-        try:
-            merit_pos = int(merit_raw)
-        except ValueError:
-            errors.append(f'Row {line_no}: merit_pos "{merit_raw}" must be a whole number.')
-            continue
-
         parsed.append({'call_id': call_id, 'year': year, 'sequence': sequence,
-                       'hall_code': hall_code, 'student_id': student_id,
-                       'merit_pos': merit_pos})
+                       'hall_code': hall_code, 'student_id': student_id})
 
     if not parsed and not errors:
         raise ValidationError('The file contains no data rows.')
@@ -143,8 +135,8 @@ def import_allocations(fileobj, acting_user=None):
             cross_dups.append(row)
             errors.append(
                 f'Row {seen_students[row["student_id"]]}: student {row["student_id"]} is already '
-                f'allotted in call {previous.call.call_id} — hall {previous.hall_code}, merit '
-                f'position {previous.merit_pos}. A student ID cannot appear in more than one call.'
+                f'allotted in call {previous.call.call_id} — hall {previous.hall_code}. '
+                f'A student ID cannot appear in more than one call.'
             )
     if cross_dups:
         ids = ', '.join(r['student_id'] for r in cross_dups)
@@ -194,14 +186,11 @@ def import_allocations(fileobj, acting_user=None):
                     call=call,
                     hall_code=row['hall_code'],
                     student_id=row['student_id'],
-                    merit_pos=row['merit_pos'],
                 ))
                 summary['created'] += 1
-            elif (allotment.hall_code != row['hall_code']
-                    or allotment.merit_pos != row['merit_pos']):
+            elif allotment.hall_code != row['hall_code']:
                 allotment.hall_code = row['hall_code']
-                allotment.merit_pos = row['merit_pos']
-                allotment.save(update_fields=['hall_code', 'merit_pos'])
+                allotment.save(update_fields=['hall_code'])
                 summary['updated'] += 1
         HallAllocation.objects.bulk_create(to_create)
 

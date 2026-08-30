@@ -193,6 +193,7 @@ class StudentForm(forms.ModelForm):
             'nationality', 'nid', 'phone', 'session', 'hall_code', 'student_status',
             'perm_addr', 'perm_dist', 'pres_addr', 'pres_dist',
             'fname_en', 'fphone', 'mname_en', 'mphone',
+            'subject_code', 'subject',
         )
         widgets = {
             'student_id': forms.TextInput(attrs={'class': WIDGET_CLASSES}),

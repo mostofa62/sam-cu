@@ -588,7 +588,7 @@ STUDENTS = [
         "adm_roll": '401804',
         "hsc_group": 'hum',
         "adm_merit": '27',
-        "user_id": 89819,
+
         "username": 'mad25148614',
     },
 
@@ -992,7 +992,7 @@ STUDENTS = [
         "adm_roll": '117936',
         "hsc_group": 'sci',
         "adm_merit": '594',
-        "user_id": 81114,
+
         "username": 'chi25103508',
     },
 
@@ -1035,7 +1035,7 @@ STUDENTS = [
         "adm_roll": '205211',
         "hsc_group": 'hum',
         "adm_merit": '175',
-        "user_id": 90416,
+
         "username": 'chi25300324',
     },
 
@@ -1244,7 +1244,7 @@ STUDENTS = [
         "adm_roll": '508474',
         "hsc_group": 'bus',
         "adm_merit": '396',
-        "user_id": 85766,
+
         "username": 'chi24525849',
     },
 
@@ -1677,7 +1677,7 @@ STUDENTS = [
         "adm_roll": '644686',
         "hsc_group": 'hum',
         "adm_merit": '1060',
-        "user_id": 140821,
+
         "username": 'jes24657270',
     },
 
@@ -1810,7 +1810,7 @@ STUDENTS = [
         "adm_roll": '123878',
         "hsc_group": 'sci',
         "adm_merit": '2407',
-        "user_id": 28457,
+
         "username": 'dha24195474',
     },
 
@@ -1853,7 +1853,7 @@ STUDENTS = [
         "adm_roll": '614118',
         "hsc_group": 'bus',
         "adm_merit": '436',
-        "user_id": 104889,
+
         "username": 'chi25507296',
     },
 
@@ -2103,7 +2103,7 @@ STUDENTS = [
         "adm_roll": '629617',
         "hsc_group": 'hum',
         "adm_merit": '1612',
-        "user_id": 75210,
+
         "username": 'dha25250956',
     },
 
@@ -2190,7 +2190,7 @@ STUDENTS = [
         "adm_roll": '404056',
         "hsc_group": 'hum',
         "adm_merit": '846',
-        "user_id": 43676,
+
         "username": 'chi24328263',
     },
 
@@ -2282,7 +2282,7 @@ STUDENTS = [
         "adm_roll": '507115',
         "hsc_group": 'bus',
         "adm_merit": '412',
-        "user_id": 104285,
+
         "username": 'chi25502793',
     },
 
@@ -2441,7 +2441,7 @@ STUDENTS = [
         "adm_roll": '400845',
         "hsc_group": 'hum',
         "adm_merit": '812',
-        "user_id": 27156,
+
         "username": 'chi24335400',
     },
 
@@ -2533,7 +2533,7 @@ STUDENTS = [
         "adm_roll": '125811',
         "hsc_group": 'sci',
         "adm_merit": '3141',
-        "user_id": 54174,
+
         "username": 'com25173448',
     },
 
@@ -2619,7 +2619,7 @@ STUDENTS = [
         "adm_roll": '639136',
         "hsc_group": 'hum',
         "adm_merit": '368',
-        "user_id": 134940,
+
         "username": 'dha25379589',
     },
 
@@ -2771,7 +2771,7 @@ STUDENTS = [
         "adm_roll": '216729',
         "hsc_group": 'hum',
         "adm_merit": '700',
-        "user_id": 29057,
+
         "username": 'chi25311067',
     },
 

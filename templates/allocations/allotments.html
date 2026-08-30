@@ -70,6 +70,12 @@
                 Allotments — Call <span class="font-mono">{{ selected_call.call_id|default:'—' }}</span>
             </h4>
             <div class="flex items-center gap-3">
+                {% if allotments %}
+                <a href="?call={{ selected_call.call_id }}&export=csv"
+                   class="text-xs font-bold uppercase px-3 py-1.5 rounded-lg bg-emerald-50 text-emerald-700 border border-emerald-200 hover:bg-emerald-100 transition">
+                    Export CSV
+                </a>
+                {% endif %}
                 {% if request.user.is_app_admin and allotments %}
                 <span id="del-count-badge"
                       class="hidden sm:inline-flex items-center gap-1.5 text-xs font-semibold text-slate-500 bg-slate-100 px-2.5 py-1 rounded-full">
@@ -80,7 +86,7 @@
                     Delete Selected
                 </button>
                 {% else %}
-                <span class="text-xs text-slate-400">ordered by merit position</span>
+                <span></span>
                 {% endif %}
             </div>
         </div>
@@ -97,9 +103,10 @@
                         class="w-4 h-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 cursor-pointer"
                         title="Select all rows on this page"></th>
                     {% endif %}
-                    <th class="px-5 py-2.5 font-semibold">Merit Position</th>
                     <th class="px-5 py-2.5 font-semibold">Student ID</th>
                     <th class="px-5 py-2.5 font-semibold">Name</th>
+                    <th class="px-5 py-2.5 font-semibold">Subject Code</th>
+                    <th class="px-5 py-2.5 font-semibold">Subject</th>
                     <th class="px-5 py-2.5 font-semibold">Allotted Hall Code</th>
                     {% if request.user.is_app_admin %}
                     <th class="px-5 py-2.5 font-semibold text-right">Remove</th>
@@ -112,17 +119,17 @@
                     data-id="{{ allotment.pk }}"
                     data-student="{{ allotment.student_id }}"
                     data-call="{{ allotment.call.call_id }}"
-                    data-hall="{{ allotment.hall_code }}"
-                    data-merit="{{ allotment.merit_pos }}">
+                    data-hall="{{ allotment.hall_code }}">
                     {% if request.user.is_app_admin %}
                     <td class="px-5 py-2.5">
                         <input type="checkbox" name="ids" value="{{ allotment.pk }}"
-                               class="w-4 h-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 cursor-pointer row-check">
+                                class="w-4 h-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 cursor-pointer row-check">
                     </td>
                     {% endif %}
-                    <td class="px-5 py-2.5 font-semibold text-indigo-700">{{ allotment.merit_pos }}</td>
                     <td class="px-5 py-2.5 font-mono font-semibold text-slate-700">{{ allotment.student_id }}</td>
                     <td class="px-5 py-2.5 text-slate-600">{{ allotment.student_name|default:'—' }}</td>
+                    <td class="px-5 py-2.5 font-mono text-slate-600">{{ allotment.subject_code|default:'—' }}</td>
+                    <td class="px-5 py-2.5 text-slate-600">{{ allotment.subject|default:'—' }}</td>
                     <td class="px-5 py-2.5 font-mono">{{ allotment.hall_code }}</td>
                     {% if request.user.is_app_admin %}
                     <td class="px-5 py-2.5 text-right">
@@ -182,7 +189,7 @@
     function detailHtml(sel) {
         const items = sel.map(r => {
             const d = r.dataset;
-            return `<li><b>${d.student}</b> &mdash; call ${d.call}, hall ${d.hall}, merit ${d.merit}</li>`;
+            return `<li><b>${d.student}</b> &mdash; call ${d.call}, hall ${d.hall}</li>`;
         });
         const extra = items.length > 8 ? `<li><i>…and ${items.length - 8} more</i></li>` : '';
         return `<p style="margin-bottom:8px">This will permanently remove <b>${sel.length}</b> allotment row(s):</p>` +
@@ -192,7 +199,7 @@
     function detailText(sel) {
         return sel.map(r => {
             const d = r.dataset;
-            return `${d.student} (call ${d.call}, hall ${d.hall}, merit ${d.merit})`;
+            return `${d.student} (call ${d.call}, hall ${d.hall})`;
         }).join('\n');
     }
 

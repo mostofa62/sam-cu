@@ -4,10 +4,18 @@
 <div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
     <div class="px-6 py-5 border-b border-slate-200 flex flex-wrap items-center justify-between gap-3">
         <div>
-            <h3 class="font-bold text-slate-800">Students</h3>
+            <h3 class="font-bold text-slate-800 flex items-center gap-3">
+                Students
+                <span class="inline-flex items-center gap-1.5 text-xs font-bold text-indigo-700 bg-indigo-50 border border-indigo-200 px-2.5 py-1 rounded-full">
+                    {{ total_students }} total
+                    {% if q or state %}· {{ filtered_count }} filtered{% endif %}
+                </span>
+            </h3>
             <p class="text-sm text-slate-500">Master data pulled from the external student system — editable here when corrections are needed.</p>
         </div>
         <div class="flex items-center gap-2">
+            {# Pull from external system — disabled for now, will be used later #}
+            {% comment %}
             <form method="post" action="{% url 'adminpanel:student_pull' %}">
                 {% csrf_token %}
                 <button type="submit" title="Refresh student master data from the external system"
@@ -15,12 +23,12 @@
                     ⟳ Pull from external system
                 </button>
             </form>
-            <a href="{% url 'adminpanel:student_add' %}" class="px-4 py-2.5 rounded-lg bg-indigo-600 text-white text-sm font-bold hover:bg-indigo-700 transition">+ Add Student</a>
+            {% endcomment %}
         </div>
     </div>
 
     <form method="get" class="px-6 py-4 bg-slate-50 border-b border-slate-200 flex flex-wrap items-center gap-3">
-        <input type="text" name="q" value="{{ q }}" placeholder="Search ID, name, session, phone…"
+        <input type="text" name="q" value="{{ q }}" placeholder="Search ID, name, session, phone, subject…"
                class="flex-1 min-w-[220px] px-4 py-2 rounded-lg border border-slate-300 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
         <select name="state" class="px-3 py-2 rounded-lg border border-slate-300 text-sm bg-white">
             <option value="">All statuses</option>
@@ -42,7 +50,8 @@
                     <th class="px-6 py-3 text-left font-semibold">Session</th>
                     <th class="px-6 py-3 text-left font-semibold">Gender</th>
                     <th class="px-6 py-3 text-left font-semibold">Phone</th>
-                    <th class="px-6 py-3 text-left font-semibold">Hall Code</th>
+                    <th class="px-6 py-3 text-left font-semibold">Subject Code</th>
+                    <th class="px-6 py-3 text-left font-semibold">Subject</th>
                     <th class="px-6 py-3 text-left font-semibold">Status</th>
                     <th class="px-6 py-3 text-right font-semibold">Actions</th>
                 </tr>
@@ -55,7 +64,8 @@
                     <td class="px-6 py-3.5 text-slate-600">{{ obj.session|default:'—' }}</td>
                     <td class="px-6 py-3.5 text-slate-600">{{ obj.gender|default:'—' }}</td>
                     <td class="px-6 py-3.5 text-slate-600">{{ obj.phone|default:'—' }}</td>
-                    <td class="px-6 py-3.5 font-mono text-slate-600">{{ obj.hall_code|default:'—' }}</td>
+                    <td class="px-6 py-3.5 font-mono text-slate-600">{{ obj.subject_code|default:'—' }}</td>
+                    <td class="px-6 py-3.5 text-slate-600">{{ obj.subject|default:'—' }}</td>
                     <td class="px-6 py-3.5">
                         {% if obj.student_status == 1 %}<span class="text-[11px] font-bold uppercase bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded-full">Active</span>
                         {% elif obj.student_status == 2 %}<span class="text-[11px] font-bold uppercase bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full">Suspended</span>
@@ -64,15 +74,64 @@
                     </td>
                     <td class="px-6 py-3.5 text-right space-x-2 whitespace-nowrap">
                         <a href="{% url 'adminpanel:student_edit' obj.pk %}" class="text-indigo-600 hover:text-indigo-800 font-semibold text-xs uppercase">Edit</a>
-                        <a href="{% url 'adminpanel:student_delete' obj.pk %}" class="text-red-500 hover:text-red-700 font-semibold text-xs uppercase">Delete</a>
+                        <a href="{% url 'adminpanel:student_delete' obj.pk %}" data-delete-url="{% url 'adminpanel:student_delete' obj.pk %}" data-student-label="{{ obj.student_id }} — {{ obj.name_en|default:'(no name)' }}" class="student-delete-btn text-red-500 hover:text-red-700 font-semibold text-xs uppercase">Delete</a>
                     </td>
                 </tr>
                 {% empty %}
-                <tr><td colspan="8" class="px-6 py-10 text-center text-slate-400">No students found.</td></tr>
+                <tr><td colspan="9" class="px-6 py-10 text-center text-slate-400">No students found.</td></tr>
                 {% endfor %}
             </tbody>
         </table>
     </div>
     {% include 'adminpanel/_pagination.html' %}
 </div>
+
+{# Hidden form for SweetAlert delete POST — CSRF token reused by JS #}
+<form id="student-delete-form" method="post" style="display:none;">{% csrf_token %}</form>
+{% endblock %}
+
+{% block scripts %}
+<script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+<script>
+(function () {
+    const csrf = document.querySelector('#student-delete-form [name=csrfmiddlewaretoken]')?.value || '';
+    function postDelete(url) {
+        const f = document.createElement('form');
+        f.method = 'POST';
+        f.action = url;
+        const inp = document.createElement('input');
+        inp.type = 'hidden';
+        inp.name = 'csrfmiddlewaretoken';
+        inp.value = csrf;
+        f.appendChild(inp);
+        document.body.appendChild(f);
+        f.submit();
+    }
+    function askConfirm(label, url) {
+        const html = `<p>You are about to delete <b>${label}</b>.</p><p class="text-sm text-slate-500 mt-2">This will remove the student master record. Past seat assignments keep their history.</p>`;
+        if (window.Swal) {
+            return Swal.fire({
+                title: 'Delete student?',
+                html: html,
+                icon: 'warning',
+                showCancelButton: true,
+                confirmButtonColor: '#dc2626',
+                cancelButtonColor: '#64748b',
+                confirmButtonText: 'Yes, delete',
+                cancelButtonText: 'Cancel',
+                focusCancel: true,
+            }).then(r => r.isConfirmed);
+        }
+        return Promise.resolve(window.confirm(`Delete ${label}? This cannot be undone.`));
+    }
+    document.querySelectorAll('.student-delete-btn').forEach(btn => {
+        btn.addEventListener('click', async (e) => {
+            e.preventDefault();
+            const url = btn.getAttribute('data-delete-url');
+            const label = btn.getAttribute('data-student-label') || 'this student';
+            if (await askConfirm(label, url)) postDelete(url);
+        });
+    });
+})();
+</script>
 {% endblock %}
