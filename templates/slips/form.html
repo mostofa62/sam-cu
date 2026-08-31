@@ -1,0 +1,200 @@
+{% extends 'base.html' %}
+{% block content %}
+<div class="max-w-4xl bg-white rounded-xl shadow-sm border border-slate-200 p-8">
+    <h3 class="text-lg font-bold text-slate-800 mb-1">{% if is_edit %}Edit Slip{% else %}Create Hall Slip / Invoice{% endif %}</h3>
+    <p class="text-sm text-slate-500 mb-6">
+        {% if is_edit %}Update student, seat and expense rows. Total and words are auto-calculated.
+        {% else %}Creates a two-copy invoice (Hall Manager + Student) with shared serial. Fill Bengali expense rows below.{% endif %}
+    </p>
+    <form method="post" class="space-y-6" id="slip-form">
+        {% csrf_token %}
+        {% if assignment_id %}<input type="hidden" name="assignment_id" value="{{ assignment_id }}">{% endif %}
+        {% if form.non_field_errors %}
+        <div class="px-4 py-3 rounded-lg bg-red-50 text-red-700 text-sm border border-red-200">{{ form.non_field_errors }}</div>
+        {% endif %}
+
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-5">
+            <div>
+                <label class="block text-sm font-semibold text-slate-700 mb-1.5">Slip Type</label>
+                {{ form.slip_type }}
+                {% for e in form.slip_type.errors %}<p class="text-xs text-red-600 mt-1">{{ e }}</p>{% endfor %}
+            </div>
+            <div>
+                <label class="block text-sm font-semibold text-slate-700 mb-1.5">Hall</label>
+                {{ form.hall }}
+                {% for e in form.hall.errors %}<p class="text-xs text-red-600 mt-1">{{ e }}</p>{% endfor %}
+            </div>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-5">
+            <div>
+                <label class="block text-sm font-semibold text-slate-700 mb-1.5">Seat (optional)</label>
+                {{ form.seat }}
+                {% for e in form.seat.errors %}<p class="text-xs text-red-600 mt-1">{{ e }}</p>{% endfor %}
+                <p class="text-xs text-slate-400 mt-1">Auto-filled from assignment on submit for release — or filter via hall selection.</p>
+            </div>
+            <div>
+                <label class="block text-sm font-semibold text-slate-700 mb-1.5">Student ID *</label>
+                {{ form.student_id }}
+                {% for e in form.student_id.errors %}<p class="text-xs text-red-600 mt-1">{{ e }}</p>{% endfor %}
+                <p class="text-xs text-slate-400 mt-1">For release: must have an existing seat assignment — validated on submit and auto-populated.</p>
+            </div>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-5">
+            <div>
+                <label class="block text-sm font-semibold text-slate-700 mb-1.5">Name</label>
+                {{ form.student_name }}
+            </div>
+            <div>
+                <label class="block text-sm font-semibold text-slate-700 mb-1.5">Father's Name</label>
+                {{ form.father_name }}
+            </div>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-5">
+            <div>
+                <label class="block text-sm font-semibold text-slate-700 mb-1.5">Subject / Department</label>
+                {{ form.subject }}
+            </div>
+            <div>
+                <label class="block text-sm font-semibold text-slate-700 mb-1.5">Subject Code</label>
+                {{ form.subject_code }}
+            </div>
+        </div>
+
+        <!-- Expense rows -->
+        <div class="rounded-xl border border-slate-200 overflow-hidden">
+            <div class="px-5 py-3 bg-slate-50 border-b border-slate-200 flex items-center justify-between">
+                <h4 class="text-sm font-bold text-slate-700 uppercase tracking-wide">Expense / Fee Rows</h4>
+                <button type="button" id="add-row" class="px-3 py-1.5 rounded-lg bg-indigo-600 text-white text-xs font-bold hover:bg-indigo-700">+ Add Row</button>
+            </div>
+            <div class="p-5">
+                <p class="text-xs text-slate-500 mb-3">Default rows: দরিদ্র খাতে, তৈজসপত্র বাবদ, জামানত বাবদ, ভোজনালয়ের অগ্রিম বাবদ — for release, previous assign slip's amounts are auto-copied on submit (editable after).</p>
+                <div id="items-container" class="space-y-3">
+                    {% for label, amount in items_data %}
+                    <div class="item-row flex gap-3 items-center">
+                        <input type="text" name="item_label" value="{{ label }}" placeholder="Label (e.g. দরিদ্র খাতে)" class="flex-1 px-3 py-2.5 rounded-lg border border-slate-300 text-sm" />
+                        <input type="number" name="item_amount" value="{{ amount }}" step="0.01" min="0" placeholder="Amount" class="w-36 px-3 py-2.5 rounded-lg border border-slate-300 text-sm text-right item-amount" />
+                        <button type="button" class="remove-row px-3 py-2 rounded-lg bg-rose-50 text-rose-600 text-xs font-bold hover:bg-rose-100">✕</button>
+                    </div>
+                    {% endfor %}
+                </div>
+                <div class="mt-4 flex justify-end">
+                    <div class="text-sm">
+                        <span class="text-slate-500">Total:</span>
+                        <span id="total-preview" class="font-bold text-slate-800 text-lg">৳ 0.00</span>
+                        <div id="words-preview" class="text-xs text-slate-500 italic"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- <div class="rounded-lg bg-amber-50 border border-amber-200 px-4 py-3 text-sm text-amber-900 flex items-start gap-2">
+            <svg class="w-5 h-5 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+            <div>
+                <p class="font-bold">Assign / Release Date &amp; Time — auto from Seat Assignment</p>
+                <p class="text-xs mt-1">No manual input. On submit the date is taken from <span class="font-mono">allocations_seatassignment.assigned_at</span> (assign) or <span class="font-mono">released_at</span> (release). For release, previous assign slip's hall/seat/fee rows are copied and you can reduce/edit before saving, then edit again after.</p>
+                {% if assignment_date_preview %}
+                <p class="mt-2 text-xs font-mono bg-white border border-amber-200 rounded px-2 py-1 inline-block">Preview: {{ assignment_date_preview|date:"d/m/Y h:i A" }} {% if assignment_date_label %}({{ assignment_date_label }}){% endif %}</p>
+                {% endif %}
+            </div>
+        </div> -->
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-5">
+            <div>
+                <label class="block text-sm font-semibold text-slate-700 mb-1.5">Signature Title</label>
+                {{ form.signature_title }}
+            </div>
+            <div>
+                <label class="block text-sm font-semibold text-slate-700 mb-1.5">Signature Name (auto)</label>
+                {{ form.signature_name }}
+                <p class="text-xs text-slate-400 mt-1">Defaults to logged-in manager's name.</p>
+            </div>
+        </div>
+        <div>
+            <label class="block text-sm font-semibold text-slate-700 mb-1.5">Remarks</label>
+            {{ form.remarks }}
+        </div>
+
+        <div class="pt-2 flex items-center gap-3">
+            <button type="submit" class="px-6 py-3 rounded-lg bg-indigo-600 text-white font-bold hover:bg-indigo-700">{% if is_edit %}Save Changes{% else %}Create Slip{% endif %}</button>
+            <a href="{% url 'slips:list' %}" class="px-6 py-3 rounded-lg bg-slate-100 text-slate-700 font-semibold">Cancel</a>
+        </div>
+    </form>
+</div>
+
+<script>
+(function(){
+    const container = document.getElementById('items-container');
+    const addBtn = document.getElementById('add-row');
+    const totalEl = document.getElementById('total-preview');
+    const wordsEl = document.getElementById('words-preview');
+
+    function calcTotal(){
+        let total = 0;
+        container.querySelectorAll('.item-amount').forEach(inp=>{
+            let v = parseFloat(inp.value);
+            if (!isNaN(v)) total += v;
+        });
+        totalEl.textContent = '৳ ' + total.toFixed(2);
+        wordsEl.textContent = total>0 ? numberToWords(Math.floor(total)) + ' Taka' + ( (total%1).toFixed(2)!='0.00' ? ' and ' + Math.round((total%1)*100) + ' Paisa' : '') + ' Only' : 'Zero Taka Only';
+    }
+    function numberToWords(n){
+        if(n===0) return 'Zero';
+        const units=['','One','Two','Three','Four','Five','Six','Seven','Eight','Nine','Ten','Eleven','Twelve','Thirteen','Fourteen','Fifteen','Sixteen','Seventeen','Eighteen','Nineteen'];
+        const tens=['','','Twenty','Thirty','Forty','Fifty','Sixty','Seventy','Eighty','Ninety'];
+        function under1000(num){
+            let parts=[];
+            if(num>=100){ parts.push(units[Math.floor(num/100)]+' Hundred'); num%=100; }
+            if(num>=20){ let t=tens[Math.floor(num/10)]; if(num%10) t+=' '+units[num%10]; parts.push(t); } else if(num>0){ parts.push(units[num]); }
+            return parts.join(' ');
+        }
+        let parts=[];
+        const scales=[[10000000,'Crore'],[100000,'Lakh'],[1000,'Thousand']];
+        for(const [val, name] of scales){ if(n>=val){ let c=Math.floor(n/val); parts.push(under1000(c)+' '+name); n%=val; } }
+        if(n>0) parts.push(under1000(n));
+        return parts.join(' ');
+    }
+
+    addBtn.addEventListener('click', ()=>{
+        const row=document.createElement('div');
+        row.className='item-row flex gap-3 items-center';
+        row.innerHTML='<input type="text" name="item_label" placeholder="Label" class="flex-1 px-3 py-2.5 rounded-lg border border-slate-300 text-sm" />'
+            + '<input type="number" name="item_amount" value="0" step="0.01" min="0" class="w-36 px-3 py-2.5 rounded-lg border border-slate-300 text-sm text-right item-amount" />'
+            + '<button type="button" class="remove-row px-3 py-2 rounded-lg bg-rose-50 text-rose-600 text-xs font-bold hover:bg-rose-100">✕</button>';
+        container.appendChild(row);
+        calcTotal();
+    });
+    container.addEventListener('click', (e)=>{
+        if(e.target.classList.contains('remove-row')){
+            e.target.closest('.item-row').remove();
+            calcTotal();
+        }
+    });
+    container.addEventListener('input', (e)=>{
+        if(e.target.classList.contains('item-amount')) calcTotal();
+    });
+    calcTotal();
+
+    const hallSel = document.getElementById('id_hall');
+    const seatSel = document.getElementById('id_seat');
+    if(hallSel && seatSel){
+        hallSel.addEventListener('change', ()=>{
+            const hallId = hallSel.value;
+            if(!hallId){ seatSel.innerHTML='<option value=\"\">---------</option>'; return;}
+            seatSel.innerHTML='<option value=\"\">Loading seats...</option>';
+            fetch(`/allocations/rooms-json/?hall_id=${hallId}`).then(r=>r.json()).then(data=>{
+                if(!data.rooms.length){ seatSel.innerHTML='<option value=\"\">No rooms in hall</option>'; return; }
+                let promises = data.rooms.map(room=> fetch(`/allocations/room-seats.json?room_id=${room.id}`).then(r=>r.json()).then(d=> d.seats.map(s=> ({id:s.id,label:s.label})) ));
+                Promise.all(promises).then(results=>{
+                    seatSel.innerHTML='<option value=\"\">---------</option>';
+                    results.flat().forEach(s=>{
+                        const opt=document.createElement('option'); opt.value=s.id; opt.textContent=s.label; seatSel.appendChild(opt);
+                    });
+                });
+            });
+        });
+    }
+})();
+</script>
+{% endblock %}
