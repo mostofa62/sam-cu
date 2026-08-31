@@ -128,3 +128,10 @@ certbot/www/
 
 # Static files collected by collectstatic
 staticfiles/
+
+# Node / Tailwind build tools
+node_modules/
+package.json
+package-lock.json
+tailwind.config.js
+static/css/input.css
