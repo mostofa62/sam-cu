@@ -10,10 +10,9 @@ Import rules:
 - Every ``hall_code`` must exist in the halls table; a hall manager may only
 - import rows whose code matches the hall they manage.
 - One row per student within the file.
-- A ``student_id`` must be unique across ALL calls: if the student was already
-- allotted in any earlier call, the import is rejected with a reference to
-- that call (hall + row number). Re-importing the SAME call
-- updates its own rows instead.
+- A ``student_id`` must be unique within each call: if the same student
+- appears twice in the same call, the import is rejected. The same student
+- may appear in different calls.
 - Activation policy: the FIRST-ever import is activated automatically (nothing
 - to compare against). Any later import stays INACTIVE on purpose — activating
 - it is a deliberate admin decision ("Set Active"), so a wrong file can never
@@ -30,6 +29,11 @@ from django.utils import timezone
 from halls.models import Hall
 
 from .models import AllocationCall, HallAllocation
+
+try:
+    from django.db import IntegrityError
+except ImportError:
+    IntegrityError = Exception
 
 REQUIRED_HEADERS = ['call_id', 'hall_code', 'student_id']
 
@@ -120,29 +124,6 @@ def import_allocations(fileobj, acting_user=None):
             label = f'{hall_name.name} ({code})' if hall_name else code
             errors.append(f'Row {seen_students[row["student_id"]]}: you manage a different hall — '
                           f'"{label}" cannot be imported by you.')
-
-    # A student may be allotted only once, ever. A student already present in
-    # ANY other call rejects the whole import with a full reference to where.
-    prior = {
-        a.student_id: a
-        for a in HallAllocation.objects.select_related('call').filter(
-            student_id__in=[r['student_id'] for r in parsed])
-    }
-    cross_dups = []
-    for row in parsed:
-        previous = prior.get(row['student_id'])
-        if previous is not None and previous.call.call_id != row['call_id']:
-            cross_dups.append(row)
-            errors.append(
-                f'Row {seen_students[row["student_id"]]}: student {row["student_id"]} is already '
-                f'allotted in call {previous.call.call_id} — hall {previous.hall_code}. '
-                f'A student ID cannot appear in more than one call.'
-            )
-    if cross_dups:
-        ids = ', '.join(r['student_id'] for r in cross_dups)
-        plural = 'ID' if len(cross_dups) == 1 else 'IDs'
-        errors.insert(0, f'Import rejected — this file has {len(cross_dups)} duplicated student {plural} '
-                         f'from previous call(s): {ids}.')
 
     if errors:
         raise ValidationError(errors)
