@@ -83,17 +83,15 @@ class AllocationCall(models.Model):
 class HallAllocation(models.Model):
     """One merit-list allotment row: which hall a student was allotted in a call.
 
-    A student ID is unique across ALL calls — once allotted, the same student
-    can never appear again in any later call.
+    A student may appear in different calls but must be unique within each call.
     """
 
     call = models.ForeignKey(AllocationCall, on_delete=models.CASCADE,
                              related_name='allotments', db_index=True)
     hall_code = models.CharField(max_length=6, db_index=True,
                                  help_text='Code of the hall allotted to the student.')
-    student_id = models.CharField(max_length=10, unique=True, db_index=True,
-                                  help_text='Student who received this allotment. '
-                                            'Unique across every allocation call.')
+    student_id = models.CharField(max_length=10, db_index=True,
+                                  help_text='Student who received this allotment.')
 
     class Meta:
         verbose_name = 'Hall Allocation'
@@ -101,8 +99,8 @@ class HallAllocation(models.Model):
         ordering = ['call__call_id', 'student_id']
         constraints = [
             models.UniqueConstraint(
-                fields=['student_id'],
-                name='unique_student_across_calls',
+                fields=['call', 'student_id'],
+                name='unique_student_per_call',
             ),
         ]
 
