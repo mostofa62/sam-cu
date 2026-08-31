@@ -74,9 +74,9 @@ def assign(request):
                     messages.success(
                         request,
                         f'Seat {assignment.seat.seat_label} assigned to {assignment.student_id} '
-                        f'as {assignment.get_order_display()}.',
+                        f'as {assignment.get_order_display()}. Now create the assign slip / invoice.',
                     )
-                    return redirect('allocations:active_assignments')
+                    return redirect('slips:from_assignment', pk=assignment.pk)
                 except ValidationError as e:
                     form.add_error('seat', e)
             elif action == 'edit':
@@ -128,8 +128,9 @@ def revoke(request):
                         halls=visible_halls,
                         reason=form.cleaned_data['reason'],
                     )
-                    messages.success(request, f'Released {len(released)} seat assignment(s).')
-                    return redirect('allocations:active_assignments')
+                    messages.success(request, f'Released {len(released)} seat assignment(s). Now create the release slip / invoice.')
+                    # Jump to release slip creation with student prefilled
+                    return redirect(f"/slips/create/release/?student_id={student_id}")
                 except ValidationError as e:
                     form.add_error('student_id', e)
             elif action == 'edit':
@@ -215,11 +216,11 @@ def revoke_assignment(request, pk):
                 note='Released from active list.',
                 reason=reason,
             )
-            messages.success(request, f'Released {assignment.student_id} from {assignment.seat.seat_label}.')
+            messages.success(request, f'Released {assignment.student_id} from {assignment.seat.seat_label}. Now create the release slip.')
         except ValidationError as e:
             messages.error(request, str(e))
             return redirect('allocations:revoke_assignment', pk=pk)
-        return redirect('allocations:active_assignments')
+        return redirect(f"/slips/create/release/?student_id={assignment.student_id}")
 
     # GET → preview & confirmation page before the release is performed. A reason
     # picked on the Active Assignments list arrives as ?reason=<id> and is shown

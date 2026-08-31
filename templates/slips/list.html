@@ -1,0 +1,93 @@
+{% extends 'base.html' %}
+{% block content %}
+<div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+    <div class="px-6 py-5 border-b border-slate-200 flex flex-wrap items-center justify-between gap-3">
+        <div>
+            <h3 class="font-bold text-slate-800">Hall Slips / Invoices</h3>
+            <p class="text-sm text-slate-500">{{ slips|length }} slip(s) — assign &amp; release invoices</p>
+        </div>
+        <div class="flex items-center gap-2">
+            <a href="{% url 'slips:create' %}?type=assign" class="px-4 py-2.5 rounded-lg bg-indigo-600 text-white text-sm font-bold hover:bg-indigo-700">+ Assign Slip</a>
+            <a href="{% url 'slips:create' %}?type=release" class="px-4 py-2.5 rounded-lg bg-rose-600 text-white text-sm font-bold hover:bg-rose-700">+ Release Slip</a>
+        </div>
+    </div>
+    <div class="px-6 py-4 bg-slate-50 border-b border-slate-200">
+        <form method="get" class="flex flex-wrap items-end gap-3">
+            <div class="flex-1 min-w-[180px]">
+                <label class="block text-xs font-semibold text-slate-600 mb-1">Search</label>
+                <input type="text" name="q" value="{{ q }}" placeholder="Serial / Student ID / Name" class="w-full px-3 py-2 rounded-lg border border-slate-300 text-sm">
+            </div>
+            <div>
+                <label class="block text-xs font-semibold text-slate-600 mb-1">Type</label>
+                <select name="type" class="px-3 py-2 rounded-lg border border-slate-300 text-sm">
+                    <option value="">All types</option>
+                    <option value="assign" {% if selected_type == 'assign' %}selected{% endif %}>Assign</option>
+                    <option value="release" {% if selected_type == 'release' %}selected{% endif %}>Release</option>
+                </select>
+            </div>
+            <div>
+                <label class="block text-xs font-semibold text-slate-600 mb-1">Hall</label>
+                <select name="hall" class="px-3 py-2 rounded-lg border border-slate-300 text-sm">
+                    <option value="">All halls</option>
+                    {% for h in halls %}<option value="{{ h.pk }}" {% if selected_hall == h.pk|stringformat:'s' %}selected{% endif %}>{{ h.name }}</option>{% endfor %}
+                </select>
+            </div>
+            <button type="submit" class="px-5 py-2 rounded-lg bg-slate-900 text-white text-sm font-bold">Filter</button>
+            <a href="{% url 'slips:list' %}" class="px-4 py-2 rounded-lg bg-white border border-slate-300 text-sm">Reset</a>
+        </form>
+    </div>
+    <div class="overflow-x-auto">
+        <table class="w-full text-sm">
+            <thead>
+                <tr class="bg-slate-50 text-slate-500 uppercase text-xs tracking-wider">
+                    <th class="px-6 py-3 text-left font-semibold">Serial / Type</th>
+                    <th class="px-6 py-3 text-left font-semibold">Hall</th>
+                    <th class="px-6 py-3 text-left font-semibold">Student</th>
+                    <th class="px-6 py-3 text-left font-semibold">Seat</th>
+                    <th class="px-6 py-3 text-left font-semibold">Amount</th>
+                    <th class="px-6 py-3 text-left font-semibold">Assign / Release Date</th>
+                    <th class="px-6 py-3 text-right font-semibold">Action</th>
+                </tr>
+            </thead>
+            <tbody class="divide-y divide-slate-100">
+                {% for s in slips %}
+                <tr class="hover:bg-slate-50">
+                    <td class="px-6 py-4">
+                        <div class="font-mono font-bold text-slate-800">{{ s.serial_number }}</div>
+                        {% if s.slip_type == 'assign' %}
+                        <span class="text-[11px] font-bold uppercase bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded-full">Assign</span>
+                        {% else %}
+                        <span class="text-[11px] font-bold uppercase bg-rose-100 text-rose-700 px-2 py-0.5 rounded-full">Release</span>
+                        {% endif %}
+                    </td>
+                    <td class="px-6 py-4">
+                        <span class="inline-flex items-center gap-2">
+                            <span class="w-2.5 h-2.5 rounded-full" style="background: {{ s.hall.color }};"></span>
+                            {{ s.hall_name_snapshot|default:s.hall.name }}
+                        </span>
+                    </td>
+                    <td class="px-6 py-4">
+                        <div class="font-semibold text-slate-800">{{ s.student_name|default:'—' }}</div>
+                        <div class="text-xs text-slate-500 font-mono">{{ s.student_id }} {% if s.subject %}· {{ s.subject }}{% endif %}</div>
+                    </td>
+                    <td class="px-6 py-4 text-slate-600 text-xs">{{ s.seat_label_snapshot|default:'—' }}</td>
+                    <td class="px-6 py-4 font-bold text-slate-800">৳ {{ s.total_amount }}</td>
+                    <td class="px-6 py-4 text-slate-500 text-xs">
+                        <div class="font-semibold text-slate-700">{{ s.event_date|date:"M d, Y h:i A" }}</div>
+                        <div class="text-[11px]">issued {{ s.issued_at|date:"M d, h:i A" }}</div>
+                    </td>
+                    <td class="px-6 py-4 text-right">
+                        <div class="inline-flex gap-1">
+                            <a href="{% url 'slips:detail' s.pk %}" class="px-3 py-1.5 rounded-lg bg-slate-100 text-slate-700 text-xs font-bold hover:bg-slate-200">View</a>
+                            <a href="{% url 'slips:print' s.pk %}" target="_blank" class="px-3 py-1.5 rounded-lg bg-indigo-50 text-indigo-700 text-xs font-bold hover:bg-indigo-100">Print</a>
+                        </div>
+                    </td>
+                </tr>
+                {% empty %}
+                <tr><td colspan="7" class="px-6 py-10 text-center text-slate-400">No slips yet. <a href="{% url 'slips:create' %}" class="text-indigo-600 font-semibold">Create one →</a></td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}

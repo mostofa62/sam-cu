@@ -1,0 +1,12 @@
+{% extends 'base.html' %}
+{% block content %}
+<div class="max-w-xl bg-white rounded-xl shadow-sm border border-slate-200 p-8">
+    <h3 class="text-lg font-bold text-slate-800 mb-2">Delete Slip {{ slip.serial_number }}?</h3>
+    <p class="text-sm text-slate-500 mb-6">This will permanently delete the slip for <span class="font-mono font-semibold">{{ slip.student_id }}</span> ({{ slip.hall_name_snapshot }}) totalling ৳ {{ slip.total_amount }}. This cannot be undone.</p>
+    <form method="post" class="flex items-center gap-3">
+        {% csrf_token %}
+        <button type="submit" class="px-6 py-3 rounded-lg bg-rose-600 text-white font-bold hover:bg-rose-700">Yes, delete</button>
+        <a href="{% url 'slips:detail' slip.pk %}" class="px-6 py-3 rounded-lg bg-slate-100 text-slate-700 font-semibold">Cancel</a>
+    </form>
+</div>
+{% endblock %}

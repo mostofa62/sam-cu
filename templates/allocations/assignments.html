@@ -47,16 +47,19 @@
                     </td>
                     <td class="px-6 py-4 text-slate-500">{{ a.assigned_at|date:"M d, Y H:i" }}</td>
                     <td class="px-6 py-4 text-right">
-                        <form method="get" action="{% url 'allocations:revoke_assignment' a.pk %}" class="inline-flex items-center gap-2">
-                            <select name="reason" required
-                                    title="Pick the release reason, then press Release"
-                                    class="text-xs border border-slate-300 rounded-lg px-2 py-1.5 text-slate-600 focus:outline-none focus:ring-2 focus:ring-rose-500 max-w-[220px]">
-                                <option value="">Select reason…</option>
-                                {% for r in release_reasons %}<option value="{{ r.pk }}">{{ r.name }}</option>{% endfor %}
-                            </select>
-                            <button type="submit" title="Preview and confirm this release"
-                                    class="px-3 py-1.5 rounded-lg bg-rose-50 text-rose-600 text-xs font-bold hover:bg-rose-100 transition">Release…</button>
-                        </form>
+                        <div class="inline-flex items-center gap-1.5">
+                            <a href="{% url 'slips:from_assignment' a.pk %}" title="Create assign slip for this assignment" class="px-3 py-1.5 rounded-lg bg-indigo-50 text-indigo-700 text-xs font-bold hover:bg-indigo-100">Slip</a>
+                            <form method="get" action="{% url 'allocations:revoke_assignment' a.pk %}" class="inline-flex items-center gap-1.5">
+                                <select name="reason" required
+                                        title="Pick the release reason, then press Release"
+                                        class="text-xs border border-slate-300 rounded-lg px-2 py-1.5 text-slate-600 focus:outline-none focus:ring-2 focus:ring-rose-500 max-w-[160px]">
+                                    <option value="">Reason…</option>
+                                    {% for r in release_reasons %}<option value="{{ r.pk }}">{{ r.name }}</option>{% endfor %}
+                                </select>
+                                <button type="submit" title="Preview and confirm this release"
+                                        class="px-3 py-1.5 rounded-lg bg-rose-50 text-rose-600 text-xs font-bold hover:bg-rose-100 transition">Release</button>
+                            </form>
+                        </div>
                     </td>
                 </tr>
                 {% empty %}

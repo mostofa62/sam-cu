@@ -1,0 +1,168 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Print Slip {{ slip.serial_number }}</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  @font-face {
+    font-family: 'NotoSansBengali';
+    src: url('{% static "fonts/NotoSansBengali-Regular.ttf" %}') format('truetype');
+    font-weight: 400;
+    font-style: normal;
+    font-display: swap;
+  }
+  @font-face {
+    font-family: 'NotoSansBengali';
+    src: url('{% static "fonts/NotoSansBengali-Bold.ttf" %}') format('truetype');
+    font-weight: 700;
+    font-style: normal;
+    font-display: swap;
+  }
+  body { font-family: 'Inter','NotoSansBengali', sans-serif; }
+  .bn { font-family: 'NotoSansBengali', sans-serif; }
+  @media print {
+    .no-print { display: none !important; }
+    html, body { margin:0; padding:0; height:100%; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    @page { size: A4 landscape; margin: 6mm; }
+    .sheet { box-shadow:none !important; margin:0 !important; break-inside: avoid; page-break-inside: avoid; width: 285mm; height: 198mm; max-width:none !important; display:flex; flex-direction:column; }
+    .sheet-inner { flex:1; display:flex; }
+    .copy { display:flex; flex-direction:column; }
+  }
+  @media screen {
+    .sheet { max-width: 1080px; }
+  }
+</style>
+</head>
+<body class="bg-slate-100 min-h-screen">
+<div class="no-print bg-white border-b border-slate-200 px-6 py-3 flex items-center justify-between sticky top-0 z-10">
+    <div class="text-sm text-slate-600"><span class="font-mono font-bold">{{ slip.serial_number }}</span> · {{ slip.get_slip_type_display }} · {{ slip.hall_name_snapshot }}</div>
+    <div class="flex items-center gap-2">
+        <a href="{% url 'slips:detail' slip.pk %}" class="px-4 py-2 rounded-lg bg-slate-100 text-slate-700 text-sm font-semibold">Back</a>
+        <button onclick="window.print()" class="px-5 py-2 rounded-lg bg-indigo-600 text-white text-sm font-bold">Print</button>
+    </div>
+</div>
+
+<!-- Whole-page sheet: fills A4 landscape exactly -->
+<div class="sheet mx-auto my-3 bg-white shadow-lg print:shadow-none print:my-0 overflow-hidden flex flex-col">
+    <div class="sheet-inner flex flex-col md:flex-row print:flex-row flex-1">
+        {% for copy in "12" %}
+        <div class="copy flex-1 p-4 {% if forloop.first %}md:border-r print:border-r border-slate-400 border-dashed{% endif %} relative">
+            {% if forloop.first %}
+            <div class="hidden print:block absolute -right-2.5 top-1/2 -translate-y-1/2 bg-white px-1 text-[7px] tracking-widest uppercase text-slate-400 rotate-90">✂ cut here</div>
+            {% endif %}
+
+            <!-- Header -->
+            <div class="text-center border-b-2 border-slate-800 pb-2 mb-2.5">
+                <p class="text-[10px] tracking-[0.18em] uppercase text-slate-500 leading-none">University of Chittagong</p>
+                <h2 class="text-[14px] font-extrabold text-slate-900 leading-tight mt-0.5">{{ slip.hall_name_snapshot }}</h2>
+                <p class="text-[9px] text-slate-600 leading-none">Chittagong University Rd, Chittagong 4331</p>
+                <div class="mt-1.5 flex items-center justify-center gap-1.5">
+                    <span class="text-[9px] font-bold uppercase tracking-wide px-2 py-0.5 rounded-full {% if slip.slip_type == 'assign' %}bg-emerald-600 text-white{% else %}bg-rose-600 text-white{% endif %}" style="line-height:1">{% if slip.slip_type == 'assign' %}Seat Assign Slip{% else %}Seat Release Slip{% endif %}</span>
+                    <span class="text-[9px] font-mono font-bold text-slate-700">{{ slip.serial_number }}</span>
+                </div>
+                <div class="mt-1">
+                    {% if forloop.first %}
+                    <span class="text-[9px] font-bold uppercase tracking-widest bg-slate-900 text-white px-2 py-0.5 rounded" style="line-height:1">Hall Manager Copy</span>
+                    {% else %}
+                    <span class="text-[9px] font-bold uppercase tracking-widest bg-white border border-slate-800 text-slate-800 px-2 py-0.5 rounded" style="line-height:1">Student Copy</span>
+                    {% endif %}
+                </div>
+            </div>
+
+            <!-- Meta -->
+            <div class="flex justify-between text-[10px] mb-1.5 leading-none">
+                <span class="text-slate-500">Serial: <span class="font-mono font-bold text-slate-800">{{ slip.serial_number }}</span></span>
+                <span class="text-slate-500">Issue: <span class="font-semibold text-slate-800">{{ slip.issued_at|date:"d/m/Y H:i" }}</span></span>
+            </div>
+            <div class="text-[10px] mb-2.5 px-2.5 py-1.5 rounded bg-amber-50 border border-amber-200 text-amber-900 flex justify-between items-center leading-none">
+                <span class="font-bold">{% if slip.slip_type == 'assign' %}Assign Date &amp; Time{% else %}Release Date &amp; Time{% endif %}:</span>
+                <span class="font-mono font-bold">{{ slip.event_date|date:"d/m/Y H:i" }}</span>
+            </div>
+
+            <!-- Student & Seat -->
+            <div class="rounded border border-slate-300 overflow-hidden mb-2.5">
+                <div class="grid grid-cols-2 text-[10px] leading-tight">
+                    <div class="px-2.5 py-1.5 border-r border-b border-slate-200"><span class="text-slate-500 text-[8px]">Seat No.</span><br><span class="font-bold text-slate-900 font-mono">{{ slip.seat_label_snapshot|default:'—' }}</span></div>
+                    <div class="px-2.5 py-1.5 border-b border-slate-200"><span class="text-slate-500 text-[8px]">Student ID</span><br><span class="font-bold text-slate-900 font-mono">{{ slip.student_id }}</span></div>
+                    <div class="px-2.5 py-1.5 border-r border-b border-slate-200"><span class="text-slate-500 text-[8px]">Name</span><br><span class="font-semibold text-slate-900">{{ slip.student_name|default:'—' }}</span>{% if slip.student_name_bn %}<br><span class="text-slate-700 bn">{{ slip.student_name_bn }}</span>{% endif %}</div>
+                    <div class="px-2.5 py-1.5 border-b border-slate-200"><span class="text-slate-500 text-[8px]">Father's Name</span><br><span class="font-semibold text-slate-900">{{ slip.father_name|default:'—' }}</span>{% if slip.father_name_bn %}<br><span class="text-slate-700 bn">{{ slip.father_name_bn }}</span>{% endif %}</div>
+                    <div class="px-2.5 py-1.5 border-r border-slate-200"><span class="text-slate-500 text-[8px]">Subject</span><br><span class="font-semibold text-slate-900">{{ slip.subject|default:'—' }} {% if slip.subject_code %}<span class="font-mono text-[8px]">({{ slip.subject_code }})</span>{% endif %}</span></div>
+                    <div class="px-2.5 py-1.5"><span class="text-slate-500 text-[8px]">Hall</span><br><span class="font-semibold text-slate-900">{{ slip.hall_name_snapshot }}</span></div>
+                </div>
+            </div>
+
+            <!-- Fee table -->
+            <div class="rounded border border-slate-300 overflow-hidden mb-2">
+                <table class="w-full text-[10px] leading-tight">
+                    <thead>
+                        <tr class="bg-slate-800 text-white text-[8px] uppercase tracking-wider">
+                            <th class="px-2 py-1 text-left font-semibold w-6">#</th>
+                            <th class="px-2 py-1 text-left font-semibold bn">Particulars / বিবরণ</th>
+                            <th class="px-2 py-1 text-right font-semibold w-20">Amount (৳)</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-slate-200">
+                        {% for it in items %}
+                        <tr>
+                            <td class="px-2 py-1 text-center text-slate-500">{{ forloop.counter }}</td>
+                            <td class="px-2 py-1 text-slate-800 bn">{{ it.label }}</td>
+                            <td class="px-2 py-1 text-right font-mono font-medium">{{ it.amount }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                    <tfoot>
+                        <tr class="bg-slate-100 font-bold border-t-2 border-slate-800">
+                            <td colspan="2" class="px-2 py-1.5 text-right">Total / মোট</td>
+                            <td class="px-2 py-1.5 text-right font-mono">৳ {{ total }}</td>
+                        </tr>
+                    </tfoot>
+                </table>
+            </div>
+
+            <div class="text-[10px] mb-2 leading-tight">
+                <span class="text-slate-500">In words:</span>
+                <span class="italic font-medium text-slate-800 bn">{{ total_in_words }}</span>
+            </div>
+            {% if slip.remarks %}
+            <div class="text-[10px] mb-2 leading-tight"><span class="text-slate-500">Remarks:</span> <span class="text-slate-800">{{ slip.remarks }}</span></div>
+            {% endif %}
+
+            <!-- Signatures compact below content -->
+            <div class="flex justify-between items-end pt-3 mt-6">
+                <div class="text-center">
+                    <div class="h-8"></div>
+                    <div class="border-t border-slate-800 w-[125px] mx-auto pt-1 text-[8px] font-semibold leading-none">Student Signature</div>
+                    <div class="text-[7px] text-slate-500 leading-none">{{ slip.event_date|date:"d/m/Y" }}</div>
+                </div>
+                <div class="text-center">
+                    <div class="h-8 flex flex-col items-center justify-end pb-1">
+                        <span class="text-[10px] italic font-semibold text-slate-800 leading-none">{{ slip.signature_name }}</span>
+                    </div>
+                    <div class="border-t border-slate-800 w-[140px] mx-auto pt-1 text-[8px] font-bold leading-none">{{ slip.signature_title }}</div>
+                    <div class="text-[7px] text-slate-500 leading-none">{{ slip.hall_name_snapshot }}</div>
+                    <div class="text-[6px] text-slate-400 font-mono leading-none">Auto · {{ slip.issued_at|date:"d/m/Y H:i" }} · {{ slip.event_date|date:"d/m/Y H:i" }}</div>
+                </div>
+            </div>
+            <div class="mt-2 text-center">
+                <p class="text-[6px] text-slate-400 leading-none">Computer generated — no manual signature required · {{ slip.serial_number }}</p>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    <div class="border-t border-dashed border-slate-400 px-3 py-1.5 bg-slate-50 print:bg-white flex flex-wrap justify-between text-[7px] text-slate-500 leading-none">
+        <span>Generated {{ now|date:"d M Y H:i" }} by {{ request.user.full_name|default:request.user.email }}</span>
+        <span>Slip {{ slip.serial_number }} · {{ slip.get_slip_type_display }}</span>
+    </div>
+</div>
+
+<div class="no-print max-w-[1080px] mx-auto my-4 text-center">
+    <p class="text-xs text-slate-500">Whole-page A4 landscape — both copies fill the sheet. Press Ctrl + P to print.</p>
+</div>
+
+<script>window.addEventListener('load', ()=>{ window.print(); });</script>
+</body>
+</html>
