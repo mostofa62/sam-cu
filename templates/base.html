@@ -5,27 +5,37 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{% block title %}{{ page_title|default:SITE_TITLE }}{% endblock %}</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="{% static 'css/dist.css' %}">
+    <link rel="stylesheet" href="{% static 'css/inter-font.css' %}">
     <style>
         body { font-family: 'Inter', sans-serif; }
         ::-webkit-scrollbar { width: 8px; height: 8px; }
         ::-webkit-scrollbar-track { background: #f1f5f9; }
         ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
         ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+        @keyframes float {
+            0%, 100% { transform: translateY(0px); }
+            50% { transform: translateY(-8px); }
+        }
+        .animate-float {
+            animation: float 4s ease-in-out infinite;
+        }
     </style>
 </head>
 <body class="bg-slate-100 min-h-screen">
     <div class="flex">
         <!-- Sidebar -->
         <aside class="w-64 bg-slate-900 text-slate-300 fixed inset-y-0 left-0 flex flex-col z-20">
-            <div class="p-6 border-b border-slate-800 flex items-center gap-3">
-                <img src="{% static 'images/logo.svg' %}" alt="{{ SITE_HEADER }}" class="h-12 w-auto flex-shrink-0">
-                <div class="min-w-0">
-                    <h1 class="text-white font-extrabold text-lg leading-tight truncate">{{ SITE_HEADER }}</h1>
-                    <p class="text-xs text-slate-500 mt-1 truncate">{{ SITE_TITLE }} · {{ SITE_INDEX_TITLE }}</p>
+            <div class="p-6 border-b border-slate-800">
+                <div class="flex items-center gap-3">
+                    <span class="inline-block animate-float filter drop-shadow-[0_0_25px_rgba(16,185,129,0.3)]">
+                        <img src="{% static 'images/logo.svg' %}" alt="{{ SITE_HEADER }}" class="h-20 w-auto flex-shrink-0">
+                    </span>
+                    <div class="min-w-0">
+                        <p class="text-xs text-slate-500 truncate">{{ SITE_TITLE }} · {{ SITE_INDEX_TITLE }}</p>
+                    </div>
                 </div>
+                <p class="text-white font-extrabold text-md leading-tight mt-3 text-center">{{ SITE_HEADER }}</p>
             </div>
             <nav class="flex-1 p-4 space-y-1 overflow-y-auto">
                 {% url 'dashboard:home' as dash_url %}
