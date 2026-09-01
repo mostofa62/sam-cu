@@ -1,9 +1,5 @@
 from django.core.management.base import BaseCommand
-from django.utils import timezone
 
-from accounts.models import User
-from allocations.models import (ActionChoices, OrderChoices, SeatAssignment,
-                                SeatAssignmentLog, SeatMaintenance)
 from halls.models import Block, Floor, Hall, Room, Seat
 
 HALL_DATA = [
@@ -36,99 +32,119 @@ COLORS = [
 
 
 class Command(BaseCommand):
-    help = 'Seed demo data: real CU halls, demo blocks/floors/rooms/seats, sample assignments and maintenance.'
+    help = 'Seed CU halls (only Hall rows). Use --clear to drop SAMPLE hall-associated data. Prompts for confirmation. Skips existing.'
+
+    def add_arguments(self, parser):
+        parser.add_argument(
+            '--clear', '--reverse', '--drop',
+            action='store_true', dest='clear',
+            help='Drop/wipe only the SAMPLE hall demo data (17 HALL_DATA codes) instead of seeding. Deletes sample halls and their dependent slips, assignments, seats, rooms, floors, blocks — leaves custom halls untouched.',
+        )
+        parser.add_argument(
+            '--no-input', '--yes', '-y',
+            action='store_true', dest='no_input',
+            help='Skip confirmation prompt and proceed (useful for automation).',
+        )
 
     def handle(self, *args, **options):
-        self._wipe_demo_data()
+        clear = options.get('clear')
+        no_input = options.get('no_input')
 
-        admin = User.objects.filter(is_superuser=True).first()
+        if clear:
+            # confirm before destructive clear — SAMPLE only
+            if not no_input and not self._confirm(
+                'This will DELETE only the SAMPLE Hall data (17 HALL_DATA codes) and their dependent records (slips, seat assignments, maintenance, seats, rooms, floors, blocks, HallAllocations). Custom halls will be kept. Continue?'
+            ):
+                self.stdout.write(self.style.WARNING('Aborted --clear. No data deleted.'))
+                return
+            count = self._wipe_sample_data()
+            self.stdout.write(self.style.WARNING(f'Seed hall SAMPLE wiped/cleared (reverse) — {count} sample hall(s) and dependents removed; custom halls kept.'))
+            return
 
+        # seeding — skip existing, confirm
+        if not no_input and not self._confirm(
+            f'This will create {len(HALL_DATA)} halls from HALL_DATA (only Hall rows, no blocks/seats). Existing sample halls will be SKIPPED (updated). Continue?'
+        ):
+            self.stdout.write(self.style.WARNING('Aborted. No data changed.'))
+            return
+
+        created = 0
+        skipped = 0
         halls = []
         for i, (code, name, hall_type, minority) in enumerate(HALL_DATA):
-            hall = Hall.objects.create(
-                name=name,
-                code=code,
-                hall_type=hall_type,
-                minority=minority,
-                color=COLORS[i % len(COLORS)],
-                has_blocks=True,
+            hall, is_created = Hall.objects.update_or_create(
+                code=code, hall_type=hall_type,
+                defaults={
+                    'name': name,
+                    'minority': minority,
+                    'color': COLORS[i % len(COLORS)],
+                    'has_blocks': False,
+                    'description': '',
+                },
             )
             halls.append(hall)
+            if is_created:
+                created += 1
+            else:
+                skipped += 1
 
-        self.stdout.write(self.style.SUCCESS(f'Created {len(halls)} halls.'))
+        self.stdout.write(self.style.SUCCESS(f'Created {created} new hall(s), skipped {skipped} existing (total {len(halls)} in HALL_DATA, only Hall rows — no blocks/floors/rooms/seats).'))
+        if skipped:
+            self.stdout.write(self.style.WARNING(f'{skipped} sample hall(s) already existed — skipped (no duplicate created).'))
+        self.stdout.write(self.style.SUCCESS('Demo hall seeding complete. Next: python manage.py seed_managers --halls <code...> (e.g. --halls HALALA halafr)'))
 
-        # Demo structure: 2 blocks, 1 floor each, 2 rooms, 4 seats each per hall
-        for hall in halls:
-            block_a = Block.objects.create(hall=hall, name='Block A', color='#0ea5e9')
-            block_b = Block.objects.create(hall=hall, name='Block B', color='#14b8a6')
-            rooms_spec = [
-                ('Ground Floor', block_a, 101),
-                ('1st Floor', block_b, 201),
-            ]
-            for fname, block, base in rooms_spec:
-                floor = Floor.objects.create(hall=hall, block=block, name=fname, color=hall.color)
-                for offset in range(2):
-                    room = Room.objects.create(
-                        hall=hall, floor=floor, name=str(base + offset), capacity=4, color=hall.color,
-                    )
-                    for seat_no in range(1, 5):
-                        Seat.objects.create(hall=hall, room=room, seat_number=str(seat_no))
+    def _confirm(self, message):
+        self.stdout.write(self.style.WARNING(message))
+        try:
+            ans = input('Type "yes" to confirm [y/N]: ').strip().lower()
+        except (EOFError, KeyboardInterrupt):
+            return False
+        return ans in ('y', 'yes')
 
-        self.stdout.write(self.style.SUCCESS('Blocks, floors, rooms and seats created.'))
+    def _wipe_sample_data(self):
+        """Delete only SAMPLE halls (HALL_DATA) and their dependents; custom halls untouched."""
+        # collect sample hall ids (code + hall_type distinct)
+        sample_halls = []
+        for code, _name, hall_type, _minority in HALL_DATA:
+            qs = Hall.objects.filter(code=code, hall_type=hall_type)
+            sample_halls.extend(list(qs))
+        sample_ids = [h.id for h in sample_halls]
+        if not sample_ids:
+            return 0
 
-        # Sample assignments across the first two halls (seat sharing demo)
-        sample_halls = halls[:2]
-        seats = list(Seat.objects.filter(hall__in=sample_halls).order_by('room__floor', 'room', 'seat_number'))
-        sample = [
-            ('2101CSE001', seats[0], OrderChoices.PRIMARY),
-            ('2101CSE002', seats[0], OrderChoices.SECONDARY),  # shared seat
-            ('2101EEE005', seats[1], OrderChoices.PRIMARY),
-            ('2101BBA012', seats[2], OrderChoices.PRIMARY),
-            ('2101PHY003', seats[3], OrderChoices.PRIMARY),
-            ('2101CSE033', seats[4], OrderChoices.PRIMARY),
-            ('2101ENG007', seats[5], OrderChoices.PRIMARY),
-            ('2101MTH002', seats[6], OrderChoices.PRIMARY),
-        ]
-        for sid, seat, order in sample:
-            assignment = SeatAssignment.objects.create(
-                seat=seat, student_id=sid, order=order, is_active=True,
-            )
-            SeatAssignmentLog.objects.create(
-                student_id=sid, seat=seat, order=order,
-                action=ActionChoices.ASSIGNED,
-                note='Seed data.', performed_by=admin,
-            )
-
-        self.stdout.write(self.style.SUCCESS('Sample assignments created.'))
-
-        m_seat = Seat.objects.filter(hall__in=sample_halls).exclude(assignments__is_active=True).first()
-        if m_seat:
-            SeatMaintenance.objects.create(seat=m_seat, reason='Renovation work', note='Seat cushion replacement.')
-            self.stdout.write(self.style.SUCCESS('Maintenance record created.'))
-
-        self.stdout.write(self.style.SUCCESS('Demo data seeding complete.'))
-
-    def _wipe_demo_data(self):
-        # Slips protect halls (PROTECT) — delete first
+        # Slips protect halls (PROTECT) — delete only for sample halls
         try:
             from slips.models import Slip, SlipItem
-            SlipItem.objects.all().delete()
-            Slip.objects.all().delete()
+            SlipItem.objects.filter(slip__hall_id__in=sample_ids).delete()
+            Slip.objects.filter(hall_id__in=sample_ids).delete()
         except Exception:
             pass
-        SeatAssignmentLog.objects.all().delete()
-        SeatMaintenance.objects.all().delete()
-        SeatAssignment.objects.all().delete()
-        # HallAllocation protects via hall_code logic but cascade via call; clear allocations
         try:
-            from allocations.models import HallAllocation, AllocationCall
-            HallAllocation.objects.all().delete()
-            # keep AllocationCall? wipe for clean demo
-            # AllocationCall.objects.all().delete()
+            from allocations.models import SeatAssignmentLog, SeatMaintenance, SeatAssignment
+            # SeatAssignmentLog/SeatMaintenance via seat__hall_id
+            SeatAssignmentLog.objects.filter(seat__hall_id__in=sample_ids).delete()
+            SeatMaintenance.objects.filter(seat__hall_id__in=sample_ids).delete()
+            SeatAssignment.objects.filter(seat__hall_id__in=sample_ids).delete()
         except Exception:
             pass
-        Seat.objects.all().delete()
-        Room.objects.all().delete()
-        Floor.objects.all().delete()
-        Block.objects.all().delete()
-        Hall.objects.all().delete()
+        try:
+            from allocations.models import HallAllocation
+            # hall_code is char, match sample codes
+            sample_codes = {code for code, _, _, _ in HALL_DATA}
+            HallAllocation.objects.filter(hall_code__in=sample_codes).delete()
+        except Exception:
+            pass
+        try:
+            Seat.objects.filter(hall_id__in=sample_ids).delete()
+            Room.objects.filter(hall_id__in=sample_ids).delete()
+            Floor.objects.filter(hall_id__in=sample_ids).delete()
+            Block.objects.filter(hall_id__in=sample_ids).delete()
+        except Exception:
+            pass
+        # finally halls
+        deleted, _ = Hall.objects.filter(id__in=sample_ids).delete()
+        return deleted
+
+    def _wipe_demo_data(self):
+        # legacy: now delegates to sample wipe (kept for compatibility)
+        return self._wipe_sample_data()

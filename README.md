@@ -190,16 +190,20 @@ python manage.py seed_managers        # 4. hall managers — requires halls!
 # students are now imported from CSV in production; seed_students was removed
 ```
 
-### 1. `seed_hall` — halls, blocks, floors, rooms, seats
+### 1. `seed_hall` — halls only (with confirmation)
 
 ```bash
-python manage.py seed_hall
+python manage.py seed_hall                 # prompts: "Type yes to confirm"
+python manage.py seed_hall --no-input      # skip prompt (automation)
+python manage.py seed_hall --clear         # drop only (wipe)
+python manage.py seed_hall --clear --no-input
 ```
 
 - Source: `halls/management/commands/seed_hall.py:1` (`HALL_DATA` — 17 CU halls).
-- Creates `Hall` (+ `Block`/`Floor`/`Room`/`Seat` demo structure: 2 blocks, 2 floors, 4 rooms, 16 seats per hall) and sample `SeatAssignment`/`SeatAssignmentLog`/`SeatMaintenance`.
-- **Destructive:** calls `_wipe_demo_data()` — deletes all existing `Hall`/`Block`/`Floor`/`Room`/`Seat`/`SeatAssignment*` rows before seeding.
-- No arguments. Re-run to reset demo hall layout.
+- Creates **only `Hall` rows** (no blocks/floors/rooms/seats — per latest spec). Previous demo structure removed.
+- **Destructive + confirmed:** both `seed` and `--clear` prompt `Type "yes" to confirm [y/N]:` via `_confirm()` (`seed_hall.py:55`); use `--no-input`/`-y`/`--yes` to bypass (`seed_hall.py:27`). `_wipe_demo_data()` (`seed_hall.py:72`) deletes all existing `Hall` and dependent `Slip`/`SlipItem` (PROTECT), `SeatAssignment/Log/Maintenance`, `HallAllocation`, `Seat`/`Room`/`Floor`/`Block` before (re)creating.
+- `--clear` (`seed_hall.py:24`) = reverse/drop: wipes all hall-associated data and exits (e.g. `python manage.py seed_hall --clear` → `Seed hall data wiped/cleared (reverse) …`). Same wipe is used before seeding, so re-running `seed_hall` is a reset.
+- Re-run to reset hall layout; next step is `seed_managers`.
 
 ### 2. `seed_reasons` — seat release reasons
 
@@ -218,8 +222,8 @@ python manage.py seed_admin --count 1 --password 'MyPass@123'
 ```
 
 - Source: `accounts/management/commands/seed_admin.py:1`.
-- Creates/updates the `Admin` group (full CRUD on halls/students/allocations without superuser) and 2 demo users (`forkan.ict@cu.ac.bd`, `shimul.ict@cu.ac.bd`, ...). Default password `SamAdmin@202609`, `is_staff=True`, `managed_hall=None` (global).
-- Options: `--count 1|2`, `--password <str>`. Superusers remain separate (`createsuperuser`).
+- Creates/updates the `Admin` group (full CRUD on halls/students/allocations without superuser) and demo users (`forkan.ict@cu.ac.bd`, `shimul.ict@cu.ac.bd`, `tonmoy.ict@cu.ac.bd`, `sayedurrchowdhury@cu.ac.bd`). Default ` --count 2` creates first two; re-run with `--count 4` to create all 4 sample admins. Default password `SamAdmin@202609`, `is_staff=True`, `managed_hall=None` (global).
+- Options: `--count 1|2|3|4`, `--password <str>`, `--clear` to drop. Superusers remain separate (`createsuperuser`). First run creates 2, second run with `--count 4` creates remaining.
 
 ### 4. `seed_managers` — hall managers (depends on halls)
 
@@ -231,21 +235,25 @@ python manage.py seed_admin --count 1 --password 'MyPass@123'
 python manage.py seed_managers
 
 # explicit — pass hall codes (code + hall_type is unique). Case-insensitive,
-# so upper or lower both work; codes are normalized internally (halala == HALALA)
-python manage.py seed_managers --halls HALALA HALSJL
-python manage.py seed_managers --halls halala halsjl          # same, auto-uppercased
+# so upper or lower both work; codes are normalized via code__iexact
+# Email is derived from the hall code: HALAFR -> hallafr@cu.ac.bd
+# Duplicates get numeric suffix: HALAFR HALAFR HALKHZ -> hallafr@cu.ac.bd, hallafr1@cu.ac.bd, halkhz@cu.ac.bd
+python manage.py seed_managers --halls HALAFR HALAFR HALKHZ
+python manage.py seed_managers --halls halafr halafr halkhz   # same (lower-case)
 python manage.py seed_managers --halls HALALA HALSJL --password 'MyPass@123'
+python manage.py seed_managers --halls HALALA HALSJL --phone '+8801670502283'
 
 # typical fresh bootstrap
 python manage.py seed_hall                                      # creates 17 CU halls; sample codes: HALALA, HALAFR, HALSJL, ...
-python manage.py seed_managers --halls HALALA HALSNR           # or halala halsnr
+python manage.py seed_managers --halls HALALA HALSNR           # -> halala@cu.ac.bd, halsnr@cu.ac.bd
 python manage.py seed_managers --halls halala halafr halsur    # lower-case also works
 ```
 
 - Source: `accounts/management/commands/seed_managers.py:1`.
-- For each hall code: creates `manager.<a>@cu.ac.bd` (`Hall Manager A`), plus a second `manager.<a>1@cu.ac.bd` for every hall after the first (demonstrates many-managers-per-hall, one-hall-per-manager via `User.managed_hall` FK). Default password `SamHallManager@202609`, domain `@cu.ac.bd` (code accepts `--halls` in any case, normalized via `code__iexact` lookup `seed_managers.py:97`).
-- Options: `--halls <code ...>` (default: first 2 codes in DB, any case), `--password <str>`. Uses `update_or_create` — safe to re-run after `seed_hall` wipes managers' FK targets. Sample hall codes from `seed_hall` (`halls/management/commands/seed_hall.py:9`): `HALALA`, `HALAFR`, `HALSJL`, `HALSMT`, `HALSUH`, `HALSNR`, `HALRAB`, `HALPRT`, `HALKHZ`, `HALBIJ`, `HALFRD`, `HALATS`, `HALFAZ`, `HALSUR`, `HALRCH`.
-- After seeding, log in as `manager.a@cu.ac.bd` / `SamHallManager@202609` (or `manager.b@cu.ac.bd`, `manager.b1@cu.ac.bd`, ...).
+- For each hall code: email = `<hall_code_lower>@cu.ac.bd` (`HALAFR` → `hallafr@cu.ac.bd`); duplicate codes get suffix (`HALAFR HALAFR` → `hallafr@cu.ac.bd`, `hallafr1@cu.ac.bd`, next `hallafr2@cu.ac.bd` …) (`seed_managers.py:60`). Full name `Hall Manager <CODE>`, `managed_hall` FK set. Default password `SamHallManager@202609`, default phone `+8801670502283` (`seed_managers.py:8`), domain `@cu.ac.bd` (case-insensitive lookup `seed_managers.py:97`). Phone is unique in `accounts_user.phone`; if the default is already taken, a sequential variant is auto-generated (`+88016705022831`, …) to satisfy the DB constraint.
+- Options: `--halls <code ...>` (default: first 2 codes in DB, any case, duplicates allowed), `--password <str>`, `--phone <str>`, `--clear` to drop previous managers. Uses `update_or_create` — safe to re-run. Sample hall codes from `seed_hall` (`halls/management/commands/seed_hall.py:9`): `HALALA`, `HALAFR`, `HALSJL`, `HALSMT`, `HALSUH`, `HALSNR`, `HALRAB`, `HALPRT`, `HALKHZ`, `HALBIJ`, `HALFRD`, `HALATS`, `HALFAZ`, `HALSUR`, `HALRCH`.
+- `python manage.py seed_managers --clear` clears previous demo managers (users with `managed_hall` set) before re-seeding — run this first if you have old `manager.*@cu.ac.bd` data.
+- After seeding, log in as `hallafr@cu.ac.bd` / `SamHallManager@202609` (or `hallafr1@cu.ac.bd`, `halkhz@cu.ac.bd`, …).
 
 ### Students
 

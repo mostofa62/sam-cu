@@ -42,12 +42,32 @@ class Command(BaseCommand):
             help=f'Password for every created demo admin (default: {DEFAULT_PASSWORD}).',
         )
         parser.add_argument(
-            '--count', type=int, default=2, choices=(1, 2),
-            help='How many demo admins to create (default: 2).',
+            '--count', type=int, default=2, choices=(1, 2, 3, 4),
+            help=f'How many demo admins to create (default: 2, max {len(DEMO_ADMINS)}; re-run with --count {len(DEMO_ADMINS)} to create all).',
+        )
+        parser.add_argument(
+            '--clear', '--reverse', '--drop',
+            action='store_true', dest='clear',
+            help='Drop/reverse: delete the demo Admin group members and the Admin group instead of creating them.',
         )
 
     @transaction.atomic
     def handle(self, *args, **options):
+        if options.get('clear'):
+            emails = [d['email'] for d in DEMO_ADMINS]
+            qs = User.objects.filter(email__in=emails)
+            count = qs.count()
+            qs.delete()
+            try:
+                grp = Group.objects.get(name=ADMIN_GROUP_NAME)
+                if grp.user_set.count() == 0:
+                    grp.delete()
+                    self.stdout.write(self.style.WARNING(f'Admin reverse: deleted {count} demo admin(s) and removed empty group "{ADMIN_GROUP_NAME}".'))
+                else:
+                    self.stdout.write(self.style.WARNING(f'Admin reverse: deleted {count} demo admin(s); group "{ADMIN_GROUP_NAME}" kept (still has members).'))
+            except Group.DoesNotExist:
+                self.stdout.write(self.style.WARNING(f'Admin reverse: deleted {count} demo admin(s); group "{ADMIN_GROUP_NAME}" not found.'))
+            return
         password = options['password']
 
         group = self._ensure_group()
