@@ -9,7 +9,7 @@ from allocations.models import (AllocationCall, HallAllocation, SeatAssignment,
 from halls.models import Block, Floor, Hall, Room, Seat
 from students.models import Student
 
-DEFAULT_PASSWORD = 'HallAdmin!2024'
+DEFAULT_PASSWORD = 'SamAdmin@202609'
 
 # Everything a non-superuser administrator needs: full CRUD on the hall
 # structure and students, manager accounts, allocation calls plus read access
@@ -22,8 +22,10 @@ MANAGED_MODELS = (
 )
 
 DEMO_ADMINS = [
-    {'email': 'admin.one@example.com', 'full_name': 'Admin One', 'phone': '+8801700000001'},
-    {'email': 'admin.two@example.com', 'full_name': 'Admin Two', 'phone': '+8801700000002'},
+    {'email': 'forkan.ict@cu.ac.bd', 'full_name': 'Mohammad Forkan', 'phone': '+8801319047012'},
+    {'email': 'shimul.ict@cu.ac.bd', 'full_name': 'S.M. Ahsanul Karim', 'phone': '+8801813220893'},
+    {'email': 'tonmoy.ict@cu.ac.bd', 'full_name': 'Tonmoy Chandro Das', 'phone': '+8801626218246'},
+    {'email': 'sayedurrchowdhury@cu.ac.bd', 'full_name': 'Sayedur R Chowdhury', 'phone': '+8801768222912'}
 ]
 
 

@@ -109,9 +109,24 @@ class Command(BaseCommand):
         self.stdout.write(self.style.SUCCESS('Demo data seeding complete.'))
 
     def _wipe_demo_data(self):
+        # Slips protect halls (PROTECT) — delete first
+        try:
+            from slips.models import Slip, SlipItem
+            SlipItem.objects.all().delete()
+            Slip.objects.all().delete()
+        except Exception:
+            pass
         SeatAssignmentLog.objects.all().delete()
         SeatMaintenance.objects.all().delete()
         SeatAssignment.objects.all().delete()
+        # HallAllocation protects via hall_code logic but cascade via call; clear allocations
+        try:
+            from allocations.models import HallAllocation, AllocationCall
+            HallAllocation.objects.all().delete()
+            # keep AllocationCall? wipe for clean demo
+            # AllocationCall.objects.all().delete()
+        except Exception:
+            pass
         Seat.objects.all().delete()
         Room.objects.all().delete()
         Floor.objects.all().delete()

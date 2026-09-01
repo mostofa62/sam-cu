@@ -4,7 +4,7 @@ from django.db import transaction
 from accounts.models import User
 from halls.models import Hall
 
-DEFAULT_PASSWORD = 'HallManager!2024'
+DEFAULT_PASSWORD = 'SamHallManager@202609'
 
 
 class Command(BaseCommand):
@@ -18,7 +18,7 @@ class Command(BaseCommand):
     def add_arguments(self, parser):
         parser.add_argument(
             '--halls', nargs='+', default=None,
-            help='Hall codes to assign managers to. When omitted the first two available are used.',
+            help='Hall codes to assign managers to. Case-insensitive; e.g. HALALA == halala. When omitted the first two available are used.',
         )
         parser.add_argument(
             '--password', default=DEFAULT_PASSWORD,
@@ -38,7 +38,7 @@ class Command(BaseCommand):
         for i, hall in enumerate(halls):
             letter = chr(ord('a') + i)
             managers.append({
-                'email': f'manager.{letter}@example.com',
+                'email': f'manager.{letter}@cu.ac.bd',
                 'full_name': f'Hall Manager {letter.upper()}',
                 'hall': hall,
             })
@@ -46,7 +46,7 @@ class Command(BaseCommand):
                 # Second manager on the same hall to demonstrate the
                 # "multiple users can manage one hall" rule.
                 managers.append({
-                    'email': f'manager.{letter}1@example.com',
+                    'email': f'manager.{letter}1@cu.ac.bd',
                     'full_name': f'Hall Manager {letter.upper()} (2nd)',
                     'hall': hall,
                 })
@@ -89,12 +89,13 @@ class Command(BaseCommand):
         if codes:
             return codes[:2]
         raise CommandError(
-            'No halls with codes found. Run `python manage.py seed_demo` first or pass '
+            'No halls with codes found. Run `python manage.py seed_hall` first or pass '
             '`--halls <code1> <code2> ...`.'
         )
 
     def _resolve_hall(self, code):
-        hall = Hall.objects.filter(code=code).first()
+        normalized = (code or '').strip()
+        hall = Hall.objects.filter(code__iexact=normalized).first()
         if hall is None:
-            raise CommandError(f'Hall with code "{code}" does not exist. Run seed_demo first.')
+            raise CommandError(f'Hall with code "{code}" does not exist. Run seed_hall first.')
         return hall

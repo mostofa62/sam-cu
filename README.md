@@ -175,6 +175,82 @@ Access at: `http://127.0.0.1:8000/`
 python manage.py createsuperuser
 ```
 
+## Seed data
+
+Seed commands are idempotent and ordered — halls must exist before managers can be created.
+
+### Required order
+
+```bash
+python manage.py migrate              # one squashed 0001_initial per app
+python manage.py seed_hall            # 1. halls + demo blocks/floors/rooms/seats
+python manage.py seed_reasons         # 2. seat-release reasons (allocations)
+python manage.py seed_admin           # 3. Admin group + demo admins (optional)
+python manage.py seed_managers        # 4. hall managers — requires halls!
+# students are now imported from CSV in production; seed_students was removed
+```
+
+### 1. `seed_hall` — halls, blocks, floors, rooms, seats
+
+```bash
+python manage.py seed_hall
+```
+
+- Source: `halls/management/commands/seed_hall.py:1` (`HALL_DATA` — 17 CU halls).
+- Creates `Hall` (+ `Block`/`Floor`/`Room`/`Seat` demo structure: 2 blocks, 2 floors, 4 rooms, 16 seats per hall) and sample `SeatAssignment`/`SeatAssignmentLog`/`SeatMaintenance`.
+- **Destructive:** calls `_wipe_demo_data()` — deletes all existing `Hall`/`Block`/`Floor`/`Room`/`Seat`/`SeatAssignment*` rows before seeding.
+- No arguments. Re-run to reset demo hall layout.
+
+### 2. `seed_reasons` — seat release reasons
+
+```bash
+python manage.py seed_reasons
+```
+
+- Source: `allocations/management/commands/seed_reasons.py:5` (`REASONS` — 6 Bengali reasons, idempotent `update_or_create` ordered by `sort_order`).
+- Replaces the old `allocations/migrations/0003_seed_release_reasons.py` data migration. Run after every fresh `migrate`.
+
+### 3. `seed_admin` — Admin group + demo admins
+
+```bash
+python manage.py seed_admin
+python manage.py seed_admin --count 1 --password 'MyPass@123'
+```
+
+- Source: `accounts/management/commands/seed_admin.py:1`.
+- Creates/updates the `Admin` group (full CRUD on halls/students/allocations without superuser) and 2 demo users (`forkan.ict@cu.ac.bd`, `shimul.ict@cu.ac.bd`, ...). Default password `SamAdmin@202609`, `is_staff=True`, `managed_hall=None` (global).
+- Options: `--count 1|2`, `--password <str>`. Superusers remain separate (`createsuperuser`).
+
+### 4. `seed_managers` — hall managers (depends on halls)
+
+> **What the error means:** `seed_managers` reads `halls_hall`. The message
+> `No halls with codes found. Run 'python manage.py seed_hall' first or pass '--halls <code1> <code2> ...'.` (`accounts/management/commands/seed_managers.py:92`) means the DB has no `Hall` rows (fresh DB or after wipe). Fix: run `seed_hall` first, or pass explicit codes that already exist. The second error `Hall with code "X" does not exist. Run seed_hall first.` (`seed_managers.py:99`) means the specific code you passed wasn't found.
+
+```bash
+# auto — uses first two hall codes from DB (requires seed_hall)
+python manage.py seed_managers
+
+# explicit — pass hall codes (code + hall_type is unique). Case-insensitive,
+# so upper or lower both work; codes are normalized internally (halala == HALALA)
+python manage.py seed_managers --halls HALALA HALSJL
+python manage.py seed_managers --halls halala halsjl          # same, auto-uppercased
+python manage.py seed_managers --halls HALALA HALSJL --password 'MyPass@123'
+
+# typical fresh bootstrap
+python manage.py seed_hall                                      # creates 17 CU halls; sample codes: HALALA, HALAFR, HALSJL, ...
+python manage.py seed_managers --halls HALALA HALSNR           # or halala halsnr
+python manage.py seed_managers --halls halala halafr halsur    # lower-case also works
+```
+
+- Source: `accounts/management/commands/seed_managers.py:1`.
+- For each hall code: creates `manager.<a>@cu.ac.bd` (`Hall Manager A`), plus a second `manager.<a>1@cu.ac.bd` for every hall after the first (demonstrates many-managers-per-hall, one-hall-per-manager via `User.managed_hall` FK). Default password `SamHallManager@202609`, domain `@cu.ac.bd` (code accepts `--halls` in any case, normalized via `code__iexact` lookup `seed_managers.py:97`).
+- Options: `--halls <code ...>` (default: first 2 codes in DB, any case), `--password <str>`. Uses `update_or_create` — safe to re-run after `seed_hall` wipes managers' FK targets. Sample hall codes from `seed_hall` (`halls/management/commands/seed_hall.py:9`): `HALALA`, `HALAFR`, `HALSJL`, `HALSMT`, `HALSUH`, `HALSNR`, `HALRAB`, `HALPRT`, `HALKHZ`, `HALBIJ`, `HALFRD`, `HALATS`, `HALFAZ`, `HALSUR`, `HALRCH`.
+- After seeding, log in as `manager.a@cu.ac.bd` / `SamHallManager@202609` (or `manager.b@cu.ac.bd`, `manager.b1@cu.ac.bd`, ...).
+
+### Students
+
+`students/management/commands/seed_students.py` was removed. Populate `students_student` via CSV import in production instead of code seed.
+
 ## Docker deployment
 
 ```bash
