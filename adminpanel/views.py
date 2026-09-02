@@ -14,13 +14,15 @@ from accounts.models import ADMIN_GROUP_NAME
 from allocations.forms import ImportAllocationsForm
 from allocations.importer import import_allocations
 from allocations.models import (AllocationCall, SeatAssignment,
-                                SeatAssignmentLog, SeatReleaseReason)
+                                 SeatAssignmentLog, SeatMaintenance,
+                                 SeatMaintenanceReason, SeatReleaseReason)
 from halls.models import Block, Floor, Hall, Room, Seat
 from students.models import Student
 from students.services import pull_students_from_external_system
 
 from .forms import (BlockForm, FloorForm, HallForm, HallManagerForm,
-                    ReleaseReasonForm, RoomForm, SeatForm, StudentForm)
+                     MaintenanceReasonForm, ReleaseReasonForm, RoomForm, SeatForm,
+                     StudentForm)
 from .pagination import CursorPaginator
 
 User = get_user_model()
@@ -832,6 +834,10 @@ class ReasonCreateView(AdminPanelRequiredMixin, CreateView):
     success_url = reverse_lazy('adminpanel:reason_list')
     object_verbose = 'Seat Release Reason'
 
+    def form_valid(self, form):
+        form.instance.created_by = self.request.user
+        return super().form_valid(form)
+
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         context.update(page_title='Add Release Reason', heading='New seat release reason')
@@ -858,6 +864,12 @@ class ReasonDeleteView(AdminPanelRequiredMixin, DeleteView):
     object_verbose = 'Seat Release Reason'
 
     def form_valid(self, form):
+        if not self.object.can_delete:
+            messages.error(
+                self.request,
+                f'Cannot delete “{self.object.name}” — it is used by {self.object.usage_count} record(s).',
+            )
+            return redirect(self.success_url)
         name = self.object.name
         self.object.delete()
         messages.success(self.request, f'Deleted release reason "{name}".')
@@ -865,6 +877,97 @@ class ReasonDeleteView(AdminPanelRequiredMixin, DeleteView):
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
-        context.update(page_title='Delete Release Reason',
-                       warning=f'“{self.object.name}” disappears from the release dropdown. Past releases keep their recorded reason.')
+        if not self.object.can_delete:
+            warning = f'“{self.object.name}” is used by {self.object.usage_count} record(s) — deletion blocked.'
+        else:
+            warning = f'“{self.object.name}” will disappear from the release dropdown. No records reference it, so it can be safely deleted.'
+        context.update(page_title='Delete Release Reason', warning=warning)
+        return context
+
+
+# --------------------------------------------------------------------------- #
+# Maintenance Reasons
+# --------------------------------------------------------------------------- #
+
+class MaintenanceReasonListView(CursorFilterListView):
+    model = SeatMaintenanceReason
+    template_name = 'adminpanel/maintenance_reason_list.html'
+    search_fields = ('name',)
+    order_field = 'pk'
+    reverse_order = False
+
+    def get_queryset(self):
+        qs = super().get_queryset().select_related('created_by')
+        return qs
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context['page_title'] = 'Maintenance Reasons'
+        return context
+
+
+class MaintenanceReasonCreateView(AdminPanelRequiredMixin, CreateView):
+    model = SeatMaintenanceReason
+    form_class = MaintenanceReasonForm
+    template_name = 'adminpanel/object_form.html'
+    success_url = reverse_lazy('adminpanel:maintenance_reason_list')
+    object_verbose = 'Seat Maintenance Reason'
+
+    def form_valid(self, form):
+        form.instance.created_by = self.request.user
+        return super().form_valid(form)
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context.update(page_title='Add Maintenance Reason', heading='New maintenance reason')
+        return context
+
+
+class MaintenanceReasonUpdateView(AdminPanelRequiredMixin, UpdateView):
+    model = SeatMaintenanceReason
+    form_class = MaintenanceReasonForm
+    template_name = 'adminpanel/object_form.html'
+    success_url = reverse_lazy('adminpanel:maintenance_reason_list')
+    object_verbose = 'Seat Maintenance Reason'
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context.update(page_title='Edit Maintenance Reason', heading=f'Edit reason — {self.object.name}')
+        return context
+
+
+class MaintenanceReasonDeleteView(AdminPanelRequiredMixin, DeleteView):
+    model = SeatMaintenanceReason
+    template_name = 'adminpanel/object_confirm_delete.html'
+    success_url = reverse_lazy('adminpanel:maintenance_reason_list')
+    object_verbose = 'Seat Maintenance Reason'
+
+    def form_valid(self, form):
+        from django.db.models import Q
+        usage = SeatMaintenance.objects.filter(
+            Q(maintenance_reason=self.object) | Q(reason=self.object.name)
+        ).distinct().count()
+        if usage > 0:
+            messages.error(
+                self.request,
+                f'Cannot delete “{self.object.name}” — it is used by {usage} maintenance record(s).',
+            )
+            return redirect(self.success_url)
+        name = self.object.name
+        self.object.delete()
+        messages.success(self.request, f'Deleted maintenance reason "{name}".')
+        return redirect(self.success_url)
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        from django.db.models import Q
+        usage = SeatMaintenance.objects.filter(
+            Q(maintenance_reason=self.object) | Q(reason=self.object.name)
+        ).distinct().count()
+        warning = f'“{self.object.name}” will disappear from the maintenance dropdown.'
+        if usage > 0:
+            warning += f' BLOCKED: {usage} maintenance record(s) still reference it.'
+        else:
+            warning += ' No maintenance records reference it, so it can be safely deleted.'
+        context.update(page_title='Delete Maintenance Reason', warning=warning)
         return context

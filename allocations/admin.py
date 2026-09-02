@@ -2,8 +2,10 @@ from django.contrib import admin
 
 from hsm.admin_site import hsm_admin_site
 
-from .models import (ActionChoices, AllocationCall, HallAllocation, SeatAssignment,
-                     SeatAssignmentLog, SeatMaintenance, SeatReleaseReason)
+from .models import (ActionChoices, AllocationCall, HallAllocation,
+                     MaintenanceActionChoices, SeatAssignment, SeatAssignmentLog,
+                     SeatMaintenance, SeatMaintenanceLog, SeatMaintenanceReason,
+                     SeatReleaseReason)
 
 
 @admin.register(AllocationCall, site=hsm_admin_site)
@@ -39,10 +41,26 @@ class HallAllocationAdmin(admin.ModelAdmin):
 
 @admin.register(SeatReleaseReason, site=hsm_admin_site)
 class SeatReleaseReasonAdmin(admin.ModelAdmin):
-    list_display = ('name', 'is_active', 'sort_order')
+    list_display = ('name', 'is_active', 'sort_order', 'created_by', 'usage_count')
     list_filter = ('is_active',)
     search_fields = ('name',)
     list_editable = ('is_active', 'sort_order')
+
+    @admin.display(description='Usage')
+    def usage_count(self, obj):
+        return obj.usage_count
+
+
+@admin.register(SeatMaintenanceReason, site=hsm_admin_site)
+class SeatMaintenanceReasonAdmin(admin.ModelAdmin):
+    list_display = ('name', 'is_active', 'sort_order', 'created_by', 'usage_count')
+    list_filter = ('is_active',)
+    search_fields = ('name',)
+    list_editable = ('is_active', 'sort_order')
+
+    @admin.display(description='Usage')
+    def usage_count(self, obj):
+        return obj.usage_count
 
 
 @admin.register(SeatAssignment, site=hsm_admin_site)
@@ -89,8 +107,45 @@ class SeatAssignmentLogAdmin(admin.ModelAdmin):
 
 @admin.register(SeatMaintenance, site=hsm_admin_site)
 class SeatMaintenanceAdmin(admin.ModelAdmin):
-    list_display = ('seat', 'reason', 'is_active', 'started_at', 'ended_at')
+    list_display = ('seat', 'reason', 'is_active', 'started_at', 'started_by', 'ended_at', 'ended_by')
     list_filter = ('is_active', 'seat__hall')
     search_fields = ('reason', 'seat__seat_number', 'seat__room__name')
     list_editable = ('is_active',)
     date_hierarchy = 'started_at'
+    readonly_fields = ('started_by', 'ended_by')
+
+    def save_model(self, request, obj, form, change):
+        if not change:
+            obj.started_by = request.user
+        if 'is_active' in form.changed_data and not obj.is_active:
+            obj.ended_by = request.user
+        super().save_model(request, obj, form, change)
+        # log via admin as well
+        if not change or 'is_active' in form.changed_data:
+            action = MaintenanceActionChoices.PUT_ON if obj.is_active else MaintenanceActionChoices.REMOVED
+            SeatMaintenanceLog.objects.create(
+                seat=obj.seat,
+                maintenance=obj,
+                action=action,
+                reason=obj.reason,
+                note=obj.note,
+                performed_by=request.user,
+            )
+
+
+@admin.register(SeatMaintenanceLog, site=hsm_admin_site)
+class SeatMaintenanceLogAdmin(admin.ModelAdmin):
+    list_display = ('action', 'seat', 'reason', 'performed_by', 'created_at')
+    list_filter = ('action', 'created_at')
+    search_fields = ('reason', 'seat__seat_number', 'seat__room__name')
+    date_hierarchy = 'created_at'
+    readonly_fields = ('seat', 'maintenance', 'action', 'reason', 'note', 'performed_by', 'created_at')
+
+    def has_add_permission(self, request):
+        return False
+
+    def has_change_permission(self, request, obj=None):
+        return False
+
+    def has_delete_permission(self, request, obj=None):
+        return False

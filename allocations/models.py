@@ -19,6 +19,11 @@ class ActionChoices(models.TextChoices):
     RELEASED = 'released', 'Released'
 
 
+class MaintenanceActionChoices(models.TextChoices):
+    PUT_ON = 'put_on', 'Put on Maintenance'
+    REMOVED = 'removed', 'Removed from Maintenance'
+
+
 class AllocationCall(models.Model):
     """A hall-allocation call/cycle imported from the merit list.
 
@@ -151,6 +156,12 @@ class SeatReleaseReason(models.Model):
                             help_text='Reason shown in the release dropdown.')
     is_active = models.BooleanField(default=True, db_index=True)
     sort_order = models.PositiveSmallIntegerField(default=0)
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='release_reasons',
+        help_text='Manager who created this reason (null for system/default).',
+    )
+    created_at = models.DateTimeField(auto_now_add=True, null=True)
 
     class Meta:
         verbose_name = 'Seat Release Reason'
@@ -159,6 +170,60 @@ class SeatReleaseReason(models.Model):
 
     def __str__(self):
         return self.name
+
+    @property
+    def usage_count(self):
+        from django.db.models import Q
+        # SeatAssignment released_reason + logs release_reason
+        return SeatAssignment.objects.filter(released_reason=self).count() + SeatAssignmentLog.objects.filter(release_reason=self).count()
+
+    @property
+    def can_delete(self):
+        return self.usage_count == 0
+
+    def is_editable_by(self, user):
+        if user.is_app_admin:
+            return True
+        return self.created_by_id == user.pk
+
+
+class SeatMaintenanceReason(models.Model):
+    """Predefined reason a manager selects when putting a seat on maintenance."""
+
+    name = models.CharField(max_length=255, unique=True,
+                            help_text='Reason shown in the maintenance dropdown.')
+    is_active = models.BooleanField(default=True, db_index=True)
+    sort_order = models.PositiveSmallIntegerField(default=0)
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='maintenance_reasons',
+        help_text='Manager who created this reason (null for system/default).',
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        verbose_name = 'Seat Maintenance Reason'
+        verbose_name_plural = 'Seat Maintenance Reasons'
+        ordering = ['sort_order', 'id']
+
+    def __str__(self):
+        return self.name
+
+    @property
+    def usage_count(self):
+        """Number of maintenance records using this reason (active + historic)."""
+        from django.db.models import Q
+        return SeatMaintenance.objects.filter(Q(reason=self.name) | Q(maintenance_reason=self)).distinct().count()
+
+    @property
+    def can_delete(self):
+        return self.usage_count == 0
+
+    def is_editable_by(self, user):
+        """Hall managers can only edit their own reasons; admins can edit any."""
+        if user.is_app_admin:
+            return True
+        return self.created_by_id == user.pk
 
 
 class SeatAssignment(models.Model):
@@ -262,10 +327,23 @@ class SeatMaintenance(models.Model):
 
     seat = models.ForeignKey(Seat, on_delete=models.CASCADE, related_name='maintenance_records')
     reason = models.CharField(max_length=255, help_text='Reason for blocking the seat.')
+    maintenance_reason = models.ForeignKey(
+        SeatMaintenanceReason, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='maintenance_records',
+        help_text='Selected maintenance reason (new).',
+    )
     note = models.TextField(blank=True)
     started_at = models.DateTimeField(default=timezone.now)
     ended_at = models.DateTimeField(null=True, blank=True)
     is_active = models.BooleanField(default=True, db_index=True)
+    started_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='maintenance_started', help_text='Manager who put the seat on hold.',
+    )
+    ended_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='maintenance_ended', help_text='Manager who removed the seat from hold.',
+    )
 
     class Meta:
         verbose_name = 'Seat Maintenance'
@@ -275,6 +353,15 @@ class SeatMaintenance(models.Model):
     def __str__(self):
         return f'{self.seat.seat_label} - {self.reason}'
 
+    @property
+    def close_log(self):
+        return self.logs.filter(action=MaintenanceActionChoices.REMOVED).order_by('-created_at').first()
+
+    @property
+    def close_note(self):
+        log = self.close_log
+        return log.note if log else ''
+
     def save(self, *args, **kwargs):
         if self.is_active and self.seat.assignments.filter(is_active=True).exists():
             raise ValidationError(
@@ -283,3 +370,29 @@ class SeatMaintenance(models.Model):
         if not self.is_active and not self.ended_at:
             self.ended_at = timezone.now()
         super().save(*args, **kwargs)
+
+
+class SeatMaintenanceLog(models.Model):
+    """Immutable audit log for every maintenance put-on / removed action."""
+
+    seat = models.ForeignKey(Seat, on_delete=models.PROTECT, related_name='maintenance_logs')
+    maintenance = models.ForeignKey(
+        SeatMaintenance, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='logs', help_text='Source maintenance record, if still present.',
+    )
+    action = models.CharField(max_length=10, choices=MaintenanceActionChoices.choices, db_index=True)
+    reason = models.CharField(max_length=255, blank=True, help_text='Reason copied from the maintenance record.')
+    note = models.TextField(blank=True)
+    performed_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='maintenance_logs',
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        verbose_name = 'Seat Maintenance Log'
+        verbose_name_plural = 'Seat Maintenance Logs'
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f'{self.get_action_display()}: {self.seat.seat_label} by {self.performed_by_id}'

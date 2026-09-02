@@ -1,0 +1,22 @@
+{% extends 'base.html' %}
+{% block content %}
+<div class="max-w-xl bg-white rounded-xl shadow-sm border border-slate-200 p-8">
+    <h3 class="text-lg font-bold text-slate-800 mb-1">{{ heading|default:page_title }}</h3>
+    <form method="post" class="space-y-5 mt-6">
+        {% csrf_token %}
+        {% if form.non_field_errors %}<div class="px-4 py-3 rounded-lg bg-red-50 text-red-700 text-sm border border-red-200">{{ form.non_field_errors }}</div>{% endif %}
+        {% for field in form %}
+        <div>
+            <label class="block text-sm font-semibold text-slate-700 mb-1.5">{{ field.label }}</label>
+            {{ field }}
+            {% for e in field.errors %}<p class="text-xs text-red-600 mt-1">{{ e }}</p>{% endfor %}
+            {% if field.help_text %}<p class="text-xs text-slate-400 mt-1">{{ field.help_text }}</p>{% endif %}
+        </div>
+        {% endfor %}
+        <div class="flex gap-3 pt-2">
+            <button type="submit" class="px-6 py-3 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white font-bold">Save</button>
+            <a href="javascript:history.back()" class="px-6 py-3 rounded-lg bg-slate-100 text-slate-700 font-semibold hover:bg-slate-200">Cancel</a>
+        </div>
+    </form>
+</div>
+{% endblock %}

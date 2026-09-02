@@ -2,7 +2,7 @@ from django import forms
 
 from halls.models import Block, Floor, Hall, Room, Seat
 
-from .models import SeatReleaseReason
+from .models import SeatMaintenanceReason, SeatReleaseReason
 
 
 class HallChoiceField(forms.ModelChoiceField):
@@ -110,6 +110,124 @@ class RevokeForm(forms.Form):
             'class': 'w-full px-4 py-3 rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-red-500',
         }),
     )
+
+
+class MaintenanceForm(forms.Form):
+    hall = HallChoiceField(
+        queryset=Hall.objects.all(),
+        empty_label='Select Hall',
+        widget=forms.Select(attrs={'class': 'w-full px-4 py-3 rounded-lg border border-gray-300', 'id': 'id_hall'}),
+    )
+    room = RoomChoiceField(
+        queryset=Room.objects.none(),
+        empty_label='Select Room',
+        widget=forms.Select(attrs={'class': 'w-full px-4 py-3 rounded-lg border border-gray-300', 'id': 'id_room'}),
+    )
+    seat = forms.ModelChoiceField(
+        queryset=Seat.objects.none(),
+        empty_label='Select Seat',
+        widget=forms.Select(attrs={'class': 'w-full px-4 py-3 rounded-lg border border-gray-300', 'id': 'id_seat'}),
+    )
+    reason = forms.ModelChoiceField(
+        label='Maintenance Reason',
+        queryset=SeatMaintenanceReason.objects.filter(is_active=True),
+        empty_label='Select a maintenance reason',
+        widget=forms.Select(attrs={
+            'class': 'w-full px-4 py-3 rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-amber-500',
+        }),
+    )
+    note = forms.CharField(
+        required=False,
+        label='Note (optional)',
+        widget=forms.Textarea(attrs={
+            'class': 'w-full px-4 py-3 rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-amber-500',
+            'rows': 3,
+            'placeholder': 'Additional details...',
+        }),
+    )
+    started_at = forms.DateTimeField(
+        label='Maintenance From',
+        required=True,
+        widget=forms.DateTimeInput(attrs={
+            'type': 'datetime-local',
+            'class': 'w-full px-4 py-3 rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-amber-500',
+        }),
+        help_text='When the maintenance starts.',
+    )
+    ended_at = forms.DateTimeField(
+        label='Maintenance To',
+        required=True,
+        widget=forms.DateTimeInput(attrs={
+            'type': 'datetime-local',
+            'class': 'w-full px-4 py-3 rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-amber-500',
+        }),
+        help_text='When the maintenance is expected to end.',
+    )
+
+    def __init__(self, *args, user=None, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.user = user
+        self.single_hall = None
+        if user is not None:
+            halls = user.visible_halls()
+            self.fields['hall'].queryset = halls
+            first_two = list(halls[:2])
+            if len(first_two) == 1:
+                self.single_hall = first_two[0]
+        if self.single_hall is not None:
+            self.fields['hall'].initial = self.single_hall
+            self.fields['hall'].widget = forms.HiddenInput()
+            self.fields['room'].queryset = Room.objects.filter(hall=self.single_hall).select_related('floor__block')
+        # Default started_at to now (local) for initial GET
+        if not self.is_bound:
+            from django.utils import timezone as _tz
+            now_local = _tz.localtime(_tz.now())
+            self.fields['started_at'].initial = now_local.strftime('%Y-%m-%dT%H:%M')
+        if self.is_bound:
+            hall_id = self.data.get('hall')
+            if hall_id:
+                self.fields['room'].queryset = Room.objects.filter(hall_id=hall_id).select_related('floor__block')
+            room_id = self.data.get('room')
+            if room_id:
+                self.fields['seat'].queryset = Seat.objects.filter(room_id=room_id, is_active=True).select_related('room', 'hall')
+        # custom label for seat field
+        self.fields['seat'].label_from_instance = lambda obj: f'{obj.room.name} / Seat {obj.seat_number}'
+
+    def clean(self):
+        cleaned = super().clean()
+        seat = cleaned.get('seat')
+        if seat and self.user is not None:
+            if not self.user.visible_halls().filter(pk=seat.hall_id).exists():
+                self.add_error('seat', 'You do not have access to this hall.')
+            if seat.assignments.filter(is_active=True).exists():
+                self.add_error('seat', 'This seat has active student(s). Release them before putting it on hold.')
+            if seat.maintenance_records.filter(is_active=True).exists():
+                self.add_error('seat', 'This seat is already on hold.')
+        started_at = cleaned.get('started_at')
+        ended_at = cleaned.get('ended_at')
+        if started_at and ended_at and ended_at <= started_at:
+            self.add_error('ended_at', 'End time must be after start time.')
+        return cleaned
+
+
+class MaintenanceReasonForm(forms.ModelForm):
+    class Meta:
+        model = SeatMaintenanceReason
+        fields = ('name', 'is_active', 'sort_order')
+        widgets = {
+            'name': forms.TextInput(attrs={'class': 'w-full px-4 py-3 rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-amber-500'}),
+            'sort_order': forms.NumberInput(attrs={'class': 'w-full px-4 py-3 rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-amber-500', 'min': 0}),
+        }
+
+
+class ReleaseReasonForm(forms.ModelForm):
+    class Meta:
+        model = SeatReleaseReason
+        fields = ('name', 'is_active', 'sort_order')
+        widgets = {
+            'name': forms.TextInput(attrs={'class': 'w-full px-4 py-3 rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-indigo-500'}),
+            'sort_order': forms.NumberInput(attrs={'class': 'w-full px-4 py-3 rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-indigo-500', 'min': 0}),
+        }
 
 
 class ImportAllocationsForm(forms.Form):

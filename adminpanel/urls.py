@@ -60,4 +60,10 @@ urlpatterns = [
     path('release-reasons/add/', views.ReasonCreateView.as_view(), name='reason_add'),
     path('release-reasons/<int:pk>/edit/', views.ReasonUpdateView.as_view(), name='reason_edit'),
     path('release-reasons/<int:pk>/delete/', views.ReasonDeleteView.as_view(), name='reason_delete'),
+
+    # Maintenance reasons
+    path('maintenance-reasons/', views.MaintenanceReasonListView.as_view(), name='maintenance_reason_list'),
+    path('maintenance-reasons/add/', views.MaintenanceReasonCreateView.as_view(), name='maintenance_reason_add'),
+    path('maintenance-reasons/<int:pk>/edit/', views.MaintenanceReasonUpdateView.as_view(), name='maintenance_reason_edit'),
+    path('maintenance-reasons/<int:pk>/delete/', views.MaintenanceReasonDeleteView.as_view(), name='maintenance_reason_delete'),
 ]

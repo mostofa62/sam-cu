@@ -2,12 +2,21 @@
 
 {% block content %}
 <div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
-    <div class="px-6 py-5 border-b border-slate-200 flex items-center justify-between">
+    <div class="px-6 py-5 border-b border-slate-200 flex flex-wrap items-center justify-between gap-3">
         <div>
             <h3 class="font-bold text-slate-800">Active Seat Assignments</h3>
-            <p class="text-sm text-slate-500">{{ assignments|length }} active assignment(s)</p>
+            <p class="text-sm text-slate-500">{{ assign_page.object_list|length }} on this page{% if q %} for "{{ q }}"{% endif %}</p>
         </div>
-        <a href="{% url 'allocations:assign' %}" class="px-4 py-2.5 rounded-lg bg-indigo-600 text-white text-sm font-bold hover:bg-indigo-700 transition">+ Assign New</a>
+        <div class="flex items-center gap-2">
+            <form method="get" class="flex items-center gap-2">
+                {% if log_q %}<input type="hidden" name="log_q" value="{{ log_q }}">{% endif %}
+                {% if request.GET.log_cursor %}<input type="hidden" name="log_cursor" value="{{ request.GET.log_cursor }}">{% endif %}
+                <input type="text" name="q" value="{{ q }}" placeholder="Search student / seat / hall" class="px-3 py-2 rounded-lg border border-slate-300 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 w-56">
+                <button type="submit" class="px-3 py-2 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 text-sm font-semibold">Search</button>
+                {% if q %}<a href="?{% if log_q %}log_q={{ log_q }}&{% endif %}{% if request.GET.log_cursor %}log_cursor={{ request.GET.log_cursor }}&{% endif %}" class="text-xs text-slate-400 hover:text-slate-600">Clear</a>{% endif %}
+            </form>
+            <a href="{% url 'allocations:assign' %}" class="px-4 py-2.5 rounded-lg bg-indigo-600 text-white text-sm font-bold hover:bg-indigo-700 transition">+ Assign New</a>
+        </div>
     </div>
 
     <div class="overflow-x-auto">
@@ -72,11 +81,33 @@
             </tbody>
         </table>
     </div>
+    <div class="px-6 py-4 border-t border-slate-200 flex flex-wrap items-center justify-between gap-3 text-sm text-slate-500">
+        <span>Showing {{ assign_page.object_list|length }} result(s) on this page</span>
+        <div class="flex items-center gap-2">
+            {% if assign_page.has_previous %}
+            <a href="?{{ assign_querystring }}cursor={{ assign_page.prev_cursor }}" class="px-3 py-1.5 rounded-lg border border-slate-300 bg-white hover:bg-slate-50 font-medium text-slate-700 transition">← Prev</a>
+            {% else %}
+            <span class="px-3 py-1.5 rounded-lg border border-slate-200 bg-slate-50 text-slate-300 font-medium cursor-not-allowed">← Prev</span>
+            {% endif %}
+            {% if assign_page.has_next %}
+            <a href="?{{ assign_querystring }}cursor={{ assign_page.next_cursor }}" class="px-3 py-1.5 rounded-lg border border-slate-300 bg-white hover:bg-slate-50 font-medium text-slate-700 transition">Next →</a>
+            {% else %}
+            <span class="px-3 py-1.5 rounded-lg border border-slate-200 bg-slate-50 text-slate-300 font-medium cursor-not-allowed">Next →</span>
+            {% endif %}
+        </div>
+    </div>
 </div>
 
 <div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden mt-8">
-    <div class="px-6 py-5 border-b border-slate-200">
+    <div class="px-6 py-5 border-b border-slate-200 flex flex-wrap items-center justify-between gap-3">
         <h3 class="font-bold text-slate-800">Recent Activity</h3>
+        <form method="get" class="flex items-center gap-2">
+            {% if q %}<input type="hidden" name="q" value="{{ q }}">{% endif %}
+            {% if request.GET.cursor %}<input type="hidden" name="cursor" value="{{ request.GET.cursor }}">{% endif %}
+            <input type="text" name="log_q" value="{{ log_q }}" placeholder="Search activity / student / by" class="px-3 py-2 rounded-lg border border-slate-300 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 w-56">
+            <button type="submit" class="px-3 py-2 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 text-sm font-semibold">Search</button>
+            {% if log_q %}<a href="?{% if q %}q={{ q }}&{% endif %}{% if request.GET.cursor %}cursor={{ request.GET.cursor }}&{% endif %}" class="text-xs text-slate-400 hover:text-slate-600">Clear</a>{% endif %}
+        </form>
     </div>
     <div class="overflow-x-auto">
         <table class="w-full text-sm">
@@ -122,6 +153,21 @@
                 {% endfor %}
             </tbody>
         </table>
+    </div>
+    <div class="px-6 py-4 border-t border-slate-200 flex flex-wrap items-center justify-between gap-3 text-sm text-slate-500">
+        <span>Showing {{ log_page.object_list|length }} result(s) on this page{% if log_q %} for "{{ log_q }}"{% endif %}</span>
+        <div class="flex items-center gap-2">
+            {% if log_page.has_previous %}
+            <a href="?{{ log_querystring }}log_cursor={{ log_page.prev_cursor }}" class="px-3 py-1.5 rounded-lg border border-slate-300 bg-white hover:bg-slate-50 font-medium text-slate-700 transition">← Prev</a>
+            {% else %}
+            <span class="px-3 py-1.5 rounded-lg border border-slate-200 bg-slate-50 text-slate-300 font-medium cursor-not-allowed">← Prev</span>
+            {% endif %}
+            {% if log_page.has_next %}
+            <a href="?{{ log_querystring }}log_cursor={{ log_page.next_cursor }}" class="px-3 py-1.5 rounded-lg border border-slate-300 bg-white hover:bg-slate-50 font-medium text-slate-700 transition">Next →</a>
+            {% else %}
+            <span class="px-3 py-1.5 rounded-lg border border-slate-200 bg-slate-50 text-slate-300 font-medium cursor-not-allowed">Next →</span>
+            {% endif %}
+        </div>
     </div>
 </div>
 {% endblock %}

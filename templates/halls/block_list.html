@@ -1,0 +1,49 @@
+{% extends 'base.html' %}
+{% block content %}
+<div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+    <div class="px-6 py-5 border-b border-slate-200 flex flex-wrap items-center justify-between gap-3">
+        <div>
+            <h3 class="font-bold text-slate-800">My Blocks</h3>
+            <p class="text-sm text-slate-500">Blocks in your hall(s). You can see all, but only edit/delete your own.</p>
+        </div>
+        <div class="flex items-center gap-2">
+            <form method="get" class="flex items-center gap-2">
+                <input type="text" name="q" value="{{ q }}" placeholder="Search block / hall" class="px-3 py-2 rounded-lg border border-slate-300 text-sm w-56">
+                <button type="submit" class="px-3 py-2 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 text-sm font-semibold">Search</button>
+                {% if q %}<a href="?" class="text-xs text-slate-400">Clear</a>{% endif %}
+            </form>
+            <a href="{% url 'halls:block_add' %}" class="px-4 py-2 rounded-lg bg-indigo-600 text-white text-sm font-bold">+ Add Block</a>
+        </div>
+    </div>
+    <div class="overflow-x-auto">
+        <table class="w-full text-sm">
+            <thead><tr class="bg-slate-50 text-slate-500 uppercase text-xs tracking-wider"><th class="px-6 py-3 text-left">Hall</th><th class="px-6 py-3 text-left">Block</th><th class="px-6 py-3 text-left">Created by</th><th class="px-6 py-3 text-right">Actions</th></tr></thead>
+            <tbody class="divide-y divide-slate-100">
+                {% for obj in objects %}
+                <tr class="hover:bg-slate-50">
+                    <td class="px-6 py-3"><span class="inline-flex items-center gap-2"><span class="w-2.5 h-2.5 rounded-full" style="background:{{ obj.hall.color }}"></span>{{ obj.hall.name }}</span></td>
+                    <td class="px-6 py-3 font-semibold"><span class="w-2.5 h-2.5 rounded-full inline-block mr-2" style="background:{{ obj.color }}"></span>{{ obj.name }}</td>
+                    <td class="px-6 py-3 text-xs">{% if obj.created_by %}{{ obj.created_by }}{% if obj.created_by_id == request.user.pk %} <span class="text-indigo-600">(you)</span>{% endif %}{% else %}<span class="text-slate-400">System</span>{% endif %}</td>
+                    <td class="px-6 py-3 text-right space-x-2">
+                        {% if obj.created_by_id == request.user.pk or request.user.is_app_admin %}
+                        <a href="{% url 'halls:block_edit' obj.pk %}" class="text-indigo-600 text-xs font-bold uppercase">Edit</a>
+                        <a href="{% url 'halls:block_delete' obj.pk %}" class="text-red-500 text-xs font-bold uppercase">Delete</a>
+                        {% else %}
+                        <span class="text-slate-300 text-xs uppercase" title="Only creator can edit">Edit</span>
+                        <span class="text-slate-300 text-xs uppercase" title="Only creator can delete">Delete</span>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% empty %}<tr><td colspan="4" class="px-6 py-10 text-center text-slate-400">No blocks.</td></tr>{% endfor %}
+            </tbody>
+        </table>
+    </div>
+    <div class="px-6 py-4 border-t flex justify-between text-sm text-slate-500">
+        <span>Showing {{ objects|length }} on page</span>
+        <div class="flex gap-2">
+            {% if page_obj.has_previous %}<a href="?{{ querystring }}cursor={{ page_obj.prev_cursor }}" class="px-3 py-1.5 border rounded-lg bg-white">← Prev</a>{% else %}<span class="px-3 py-1.5 border rounded-lg bg-slate-50 text-slate-300">← Prev</span>{% endif %}
+            {% if page_obj.has_next %}<a href="?{{ querystring }}cursor={{ page_obj.next_cursor }}" class="px-3 py-1.5 border rounded-lg bg-white">Next →</a>{% else %}<span class="px-3 py-1.5 border rounded-lg bg-slate-50 text-slate-300">Next →</span>{% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}
