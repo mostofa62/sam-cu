@@ -3,8 +3,9 @@ from django.utils import timezone
 
 from halls.models import Hall
 
-from .models import (ActionChoices, AllocationCall, HallAllocation, OrderChoices,
-                     SeatAssignment, SeatAssignmentLog)
+from .models import (ActionChoices, AllocationCall, HallAllocation,
+                     MaintenanceActionChoices, OrderChoices, SeatAssignment,
+                     SeatAssignmentLog, SeatMaintenanceLog)
 
 
 def _already_assigned_message(assignment, acting_user=None):
@@ -181,12 +182,76 @@ def revoke_seat(student_id, seat=None, performed_by=None, note='', halls=None, r
     return released
 
 
-def put_seat_under_maintenance(seat, reason, note=''):
-    """Move a seat into maintenance (releasing any active assignments)."""
+def put_seat_under_maintenance(seat, reason, note='', performed_by=None, started_at=None, ended_at=None):
+    """Move a seat into maintenance for a time window. Logs who did it.
+
+    ``reason`` may be a ``SeatMaintenanceReason`` instance or a plain string.
+    """
     if seat.assignments.filter(is_active=True).exists():
         raise ValidationError('This seat has active student(s). Release them before putting it on hold.')
-    from .models import SeatMaintenance
-    record = SeatMaintenance(seat=seat, reason=reason, note=note, is_active=True)
+    if seat.maintenance_records.filter(is_active=True).exists():
+        raise ValidationError('This seat is already on hold.')
+    if performed_by is not None and not performed_by.is_app_admin:
+        if not performed_by.visible_halls().filter(pk=seat.hall_id).exists():
+            raise ValidationError('You do not have access to this hall.')
+    if not started_at or not ended_at:
+        raise ValidationError('Both start and end time are required.')
+    if ended_at <= started_at:
+        raise ValidationError('End time must be after start time.')
+    from .models import SeatMaintenance, SeatMaintenanceReason
+    # Normalize reason to both string and FK
+    maintenance_reason_obj = None
+    reason_str = reason
+    if isinstance(reason, SeatMaintenanceReason):
+        maintenance_reason_obj = reason
+        reason_str = reason.name
+    elif reason is not None:
+        reason_str = str(reason).strip()
+        # try to resolve to FK if an active reason with that name exists
+        try:
+            maintenance_reason_obj = SeatMaintenanceReason.objects.get(name=reason_str)
+        except SeatMaintenanceReason.DoesNotExist:
+            maintenance_reason_obj = None
+    if not reason_str:
+        raise ValidationError('A maintenance reason must be selected.')
+    kwargs = dict(seat=seat, reason=reason_str, maintenance_reason=maintenance_reason_obj,
+                  note=note, is_active=True, started_by=performed_by)
+    kwargs['started_at'] = started_at
+    kwargs['ended_at'] = ended_at
+    record = SeatMaintenance(**kwargs)
     record.full_clean()
     record.save()
+    log_note = note
+    SeatMaintenanceLog.objects.create(
+        seat=seat,
+        maintenance=record,
+        action=MaintenanceActionChoices.PUT_ON,
+        reason=reason_str,
+        note=log_note,
+        performed_by=performed_by,
+    )
+    return record
+
+
+def remove_seat_from_maintenance(seat, performed_by=None, note=''):
+    """Remove a seat from maintenance. Logs who removed it."""
+    from .models import SeatMaintenance
+    record = seat.maintenance_records.filter(is_active=True).first()
+    if record is None:
+        raise ValidationError('This seat is not on hold.')
+    if performed_by is not None and not performed_by.is_app_admin:
+        if not performed_by.visible_halls().filter(pk=seat.hall_id).exists():
+            raise ValidationError('You do not have access to this hall.')
+    record.is_active = False
+    record.ended_by = performed_by
+    # ended_at auto-set in model save when is_active=False
+    record.save(update_fields=['is_active', 'ended_at', 'ended_by'])
+    SeatMaintenanceLog.objects.create(
+        seat=seat,
+        maintenance=record,
+        action=MaintenanceActionChoices.REMOVED,
+        reason=record.reason,
+        note=note,
+        performed_by=performed_by,
+    )
     return record

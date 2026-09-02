@@ -1,3 +1,4 @@
+from django.conf import settings
 from django.core.validators import RegexValidator
 from django.db import models
 
@@ -74,6 +75,7 @@ class Block(TimeStampedModel):
     name = models.CharField(max_length=100)
     color = models.CharField(max_length=9, validators=[hex_color_validator], default='#22c55e',
                              help_text='Color used to differentiate this block.')
+    created_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name='created_blocks')
 
     class Meta:
         verbose_name = 'Block'
@@ -86,6 +88,11 @@ class Block(TimeStampedModel):
     def __str__(self):
         return f'{self.hall.name} - {self.name}'
 
+    def is_editable_by(self, user):
+        if user.is_app_admin:
+            return True
+        return self.created_by_id == user.pk
+
 
 class Floor(TimeStampedModel):
     """Floor inside a hall. Belongs to a block when the hall uses blocks, otherwise directly to the hall."""
@@ -95,6 +102,7 @@ class Floor(TimeStampedModel):
     name = models.CharField(max_length=100, help_text='e.g. Ground Floor, 1st Floor')
     color = models.CharField(max_length=9, validators=[hex_color_validator], default='#f59e0b',
                              help_text='Color used to differentiate this floor.')
+    created_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name='created_floors')
 
     class Meta:
         verbose_name = 'Floor'
@@ -109,6 +117,11 @@ class Floor(TimeStampedModel):
         prefix = f'{self.block} / ' if self.block else f'{self.hall.name} / '
         return f'{prefix}{self.name}'
 
+    def is_editable_by(self, user):
+        if user.is_app_admin:
+            return True
+        return self.created_by_id == user.pk
+
 
 class Room(TimeStampedModel):
     """Room inside a floor."""
@@ -119,6 +132,7 @@ class Room(TimeStampedModel):
     capacity = models.PositiveIntegerField(default=0, help_text='Maximum number of seats.')
     color = models.CharField(max_length=9, validators=[hex_color_validator], default='#8b5cf6',
                              help_text='Color used to differentiate this room.')
+    created_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name='created_rooms')
 
     class Meta:
         verbose_name = 'Room'
@@ -138,6 +152,11 @@ class Room(TimeStampedModel):
         prefix = f'{floor.block.name} / {floor.name}' if floor.block_id else floor.name
         return f'{prefix} - Room {self.name}'
 
+    def is_editable_by(self, user):
+        if user.is_app_admin:
+            return True
+        return self.created_by_id == user.pk
+
 
 class Seat(TimeStampedModel):
     """A physical seat inside a room."""
@@ -146,6 +165,7 @@ class Seat(TimeStampedModel):
     room = models.ForeignKey(Room, on_delete=models.CASCADE, related_name='seats')
     seat_number = models.CharField(max_length=50)
     is_active = models.BooleanField(default=True, help_text='Uncheck to permanently disable this seat.')
+    created_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name='created_seats')
 
     class Meta:
         verbose_name = 'Seat'
@@ -157,6 +177,11 @@ class Seat(TimeStampedModel):
 
     def __str__(self):
         return f'{self.room} - Seat {self.seat_number}'
+
+    def is_editable_by(self, user):
+        if user.is_app_admin:
+            return True
+        return self.created_by_id == user.pk
 
     @property
     def seat_label(self):

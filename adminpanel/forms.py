@@ -3,7 +3,7 @@ from django.contrib.auth import get_user_model
 from django.core.exceptions import ValidationError
 
 from accounts.models import ADMIN_GROUP_NAME
-from allocations.models import SeatReleaseReason
+from allocations.models import SeatMaintenanceReason, SeatReleaseReason
 from halls.models import Block, Floor, Hall, Room, Seat
 from students.models import Student
 
@@ -219,6 +219,16 @@ class StudentForm(forms.ModelForm):
 class ReleaseReasonForm(forms.ModelForm):
     class Meta:
         model = SeatReleaseReason
+        fields = ('name', 'is_active', 'sort_order')
+        widgets = {
+            'name': forms.TextInput(attrs={'class': WIDGET_CLASSES}),
+            'sort_order': forms.NumberInput(attrs={'class': WIDGET_CLASSES, 'min': 0}),
+        }
+
+
+class MaintenanceReasonForm(forms.ModelForm):
+    class Meta:
+        model = SeatMaintenanceReason
         fields = ('name', 'is_active', 'sort_order')
         widgets = {
             'name': forms.TextInput(attrs={'class': WIDGET_CLASSES}),

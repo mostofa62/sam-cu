@@ -1,0 +1,176 @@
+{% extends 'base.html' %}
+{% block content %}
+<div class="flex items-center justify-between mb-6">
+    <div>
+        <h3 class="text-lg font-bold text-slate-800">Seats on Maintenance</h3>
+        <p class="text-sm text-slate-500">Hall managers can put seats on hold and remove them. Every action is logged.</p>
+    </div>
+    <a href="{% url 'allocations:maintenance_put' %}" class="px-5 py-2.5 rounded-lg bg-amber-100 hover:bg-amber-200 text-amber-700 border border-amber-200 font-semibold text-sm">+ Put Seat on Hold</a>
+</div>
+
+<!-- Active holds -->
+<div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden mb-8">
+    <div class="px-6 py-4 border-b border-slate-200 bg-slate-50 flex flex-wrap items-center justify-between gap-3">
+        <h4 class="font-bold text-slate-700">Active Holds <span class="ml-2 text-xs font-medium bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full">{{ active_page.object_list|length }} on page</span></h4>
+        <form method="get" class="flex items-center gap-2">
+            {% if log_q %}<input type="hidden" name="log_q" value="{{ log_q }}">{% endif %}
+            {% if past_q %}<input type="hidden" name="past_q" value="{{ past_q }}">{% endif %}
+            {% if request.GET.log_cursor %}<input type="hidden" name="log_cursor" value="{{ request.GET.log_cursor }}">{% endif %}
+            {% if request.GET.past_cursor %}<input type="hidden" name="past_cursor" value="{{ request.GET.past_cursor }}">{% endif %}
+            <input type="text" name="q" value="{{ q }}" placeholder="Search seat / hall / reason / note" class="px-3 py-2 rounded-lg border border-slate-300 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500 w-64">
+            <button type="submit" class="px-3 py-2 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 text-sm font-semibold">Search</button>
+            {% if q %}<a href="?{% if log_q %}log_q={{ log_q }}&{% endif %}{% if past_q %}past_q={{ past_q }}&{% endif %}" class="text-xs text-slate-400 hover:text-slate-600">Clear</a>{% endif %}
+        </form>
+    </div>
+    {% if active_records %}
+    <div class="overflow-x-auto">
+        <table class="w-full text-sm">
+            <thead class="bg-slate-50 text-xs uppercase tracking-wide text-slate-500">
+                <tr>
+                    <th class="px-6 py-3 text-left">Seat</th>
+                    <th class="px-6 py-3 text-left">Hall / Room</th>
+                    <th class="px-6 py-3 text-left">Reason</th>
+                    <th class="px-6 py-3 text-left">Note</th>
+                    <th class="px-6 py-3 text-left">Window</th>
+                    <th class="px-6 py-3 text-left">Put on by</th>
+                    <th class="px-6 py-3 text-right">Action</th>
+                </tr>
+            </thead>
+            <tbody class="divide-y divide-slate-100">
+                {% for m in active_records %}
+                <tr class="hover:bg-slate-50">
+                    <td class="px-6 py-3 font-mono font-semibold text-slate-700">{{ m.seat.seat_label }}</td>
+                    <td class="px-6 py-3">
+                        <span class="inline-flex items-center gap-1.5">
+                            <span class="w-2 h-2 rounded-full" style="background: {{ m.seat.hall.color }};"></span>
+                            {{ m.seat.hall.name }}
+                        </span>
+                        <span class="text-slate-400">· {{ m.seat.room.compact_label }}</span>
+                    </td>
+                    <td class="px-6 py-3">
+                        <span class="font-medium text-slate-800">{{ m.reason }}</span>
+                        {% if m.maintenance_reason %}<p class="text-xs text-slate-400">via {{ m.maintenance_reason.name }}</p>{% endif %}
+                    </td>
+                    <td class="px-6 py-3">
+                        {% if m.note %}<span class="text-xs text-slate-500">{{ m.note }}</span>{% else %}<span class="text-xs text-slate-300">—</span>{% endif %}
+                    </td>
+                    <td class="px-6 py-3 text-xs">
+                        <span class="font-medium text-slate-700">{{ m.started_at|date:"M d, Y H:i" }}</span>
+                        <span class="text-slate-400"> → {{ m.ended_at|date:"M d, Y H:i" }}</span>
+                    </td>
+                    <td class="px-6 py-3 text-slate-600">
+                        {% if m.started_by %}{{ m.started_by }}{% else %}<span class="text-slate-400">—</span>{% endif %}
+                    </td>
+                    <td class="px-6 py-3 text-right">
+                        <a href="{% url 'allocations:maintenance_remove' m.pk %}" class="inline-flex px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold">Remove</a>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% else %}
+    <p class="px-6 py-8 text-sm text-slate-400 text-center">No seats currently on hold.</p>
+    {% endif %}
+    <div class="px-6 py-4 border-t border-slate-200 flex flex-wrap items-center justify-between gap-3 text-sm text-slate-500">
+        <span>Showing {{ active_page.object_list|length }} result(s) on this page{% if q %} for "{{ q }}"{% endif %}</span>
+        <div class="flex items-center gap-2">
+            {% if active_page.has_previous %}
+            <a href="?{{ active_querystring }}cursor={{ active_page.prev_cursor }}" class="px-3 py-1.5 rounded-lg border border-slate-300 bg-white hover:bg-slate-50 font-medium text-slate-700 transition">← Prev</a>
+            {% else %}
+            <span class="px-3 py-1.5 rounded-lg border border-slate-200 bg-slate-50 text-slate-300 font-medium cursor-not-allowed">← Prev</span>
+            {% endif %}
+            {% if active_page.has_next %}
+            <a href="?{{ active_querystring }}cursor={{ active_page.next_cursor }}" class="px-3 py-1.5 rounded-lg border border-slate-300 bg-white hover:bg-slate-50 font-medium text-slate-700 transition">Next →</a>
+            {% else %}
+            <span class="px-3 py-1.5 rounded-lg border border-slate-200 bg-slate-50 text-slate-300 font-medium cursor-not-allowed">Next →</span>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<!-- Recent logs -->
+<div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+    <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
+        <div class="flex flex-wrap items-center justify-between gap-3 mb-4">
+            <h4 class="font-bold text-slate-800">Recent Maintenance Activity</h4>
+            <form method="get" class="flex items-center gap-2">
+                {% if q %}<input type="hidden" name="q" value="{{ q }}">{% endif %}
+                {% if past_q %}<input type="hidden" name="past_q" value="{{ past_q }}">{% endif %}
+                {% if request.GET.cursor %}<input type="hidden" name="cursor" value="{{ request.GET.cursor }}">{% endif %}
+                {% if request.GET.past_cursor %}<input type="hidden" name="past_cursor" value="{{ request.GET.past_cursor }}">{% endif %}
+                <input type="text" name="log_q" value="{{ log_q }}" placeholder="Search activity" class="px-3 py-1.5 rounded-lg border border-slate-300 text-xs focus:outline-none focus:ring-2 focus:ring-amber-500 w-48">
+                <button type="submit" class="px-2.5 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold">Search</button>
+                {% if log_q %}<a href="?{% if q %}q={{ q }}&{% endif %}{% if past_q %}past_q={{ past_q }}&{% endif %}" class="text-xs text-slate-400 hover:text-slate-600">Clear</a>{% endif %}
+            </form>
+        </div>
+        <div class="space-y-3">
+            {% for log in logs %}
+            <div class="flex items-start gap-3">
+                {% if log.action == 'put_on' %}
+                <span class="mt-1 w-2 h-2 rounded-full bg-amber-500 flex-shrink-0"></span>
+                {% else %}
+                <span class="mt-1 w-2 h-2 rounded-full bg-emerald-500 flex-shrink-0"></span>
+                {% endif %}
+                <div class="flex-1">
+                    <p class="text-sm text-slate-700">
+                        <span class="font-mono font-semibold">{{ log.seat.seat_label }}</span>
+                        {% if log.action == 'put_on' %}put on hold{% else %}removed from hold{% endif %}
+                        {% if log.reason %}<span class="text-slate-500">— {{ log.reason }}</span>{% endif %}
+                        {% if log.note %}<span class="text-slate-500">— {{ log.note }}</span>{% endif %}
+                    </p>
+                    <p class="text-xs text-slate-400">{{ log.created_at|date:"M d, Y H:i" }} {% if log.performed_by %}· {{ log.performed_by }}{% endif %}</p>
+                </div>
+                <span class="text-[10px] font-bold uppercase px-2 py-0.5 rounded-full {% if log.action == 'put_on' %}bg-amber-100 text-amber-700{% else %}bg-emerald-100 text-emerald-700{% endif %}">{{ log.get_action_display }}</span>
+            </div>
+            {% empty %}
+            <p class="text-sm text-slate-400">No maintenance activity yet.</p>
+            {% endfor %}
+        </div>
+        <div class="mt-4 pt-4 border-t border-slate-200 flex flex-wrap items-center justify-between gap-3 text-xs text-slate-500">
+            <span>Showing {{ logs_page.object_list|length }} on page{% if log_q %} for "{{ log_q }}"{% endif %}</span>
+            <div class="flex items-center gap-2">
+                {% if logs_page.has_previous %}<a href="?{{ logs_querystring }}log_cursor={{ logs_page.prev_cursor }}" class="px-2.5 py-1 rounded-lg border border-slate-300 bg-white hover:bg-slate-50 font-medium text-slate-700">← Prev</a>{% else %}<span class="px-2.5 py-1 rounded-lg border border-slate-200 bg-slate-50 text-slate-300">← Prev</span>{% endif %}
+                {% if logs_page.has_next %}<a href="?{{ logs_querystring }}log_cursor={{ logs_page.next_cursor }}" class="px-2.5 py-1 rounded-lg border border-slate-300 bg-white hover:bg-slate-50 font-medium text-slate-700">Next →</a>{% else %}<span class="px-2.5 py-1 rounded-lg border border-slate-200 bg-slate-50 text-slate-300">Next →</span>{% endif %}
+            </div>
+        </div>
+    </div>
+
+    <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
+        <div class="flex flex-wrap items-center justify-between gap-3 mb-4">
+            <h4 class="font-bold text-slate-800">Recently Closed</h4>
+            <form method="get" class="flex items-center gap-2">
+                {% if q %}<input type="hidden" name="q" value="{{ q }}">{% endif %}
+                {% if log_q %}<input type="hidden" name="log_q" value="{{ log_q }}">{% endif %}
+                {% if request.GET.cursor %}<input type="hidden" name="cursor" value="{{ request.GET.cursor }}">{% endif %}
+                {% if request.GET.log_cursor %}<input type="hidden" name="log_cursor" value="{{ request.GET.log_cursor }}">{% endif %}
+                <input type="text" name="past_q" value="{{ past_q }}" placeholder="Search closed" class="px-3 py-1.5 rounded-lg border border-slate-300 text-xs focus:outline-none focus:ring-2 focus:ring-amber-500 w-48">
+                <button type="submit" class="px-2.5 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold">Search</button>
+                {% if past_q %}<a href="?{% if q %}q={{ q }}&{% endif %}{% if log_q %}log_q={{ log_q }}&{% endif %}" class="text-xs text-slate-400 hover:text-slate-600">Clear</a>{% endif %}
+            </form>
+        </div>
+        <div class="space-y-3">
+            {% for m in past_records %}
+            <div class="flex items-start gap-3 p-3 rounded-lg bg-slate-50 border border-slate-100">
+                <div class="flex-1 min-w-0">
+                    <p class="font-mono text-sm font-semibold text-slate-700">{{ m.seat.seat_label }}</p>
+                    <p class="text-xs text-slate-500">{{ m.reason }}</p>
+                    {% if m.note %}<p class="text-xs text-slate-500 mt-1">Open note: {{ m.note }}</p>{% else %}<p class="text-xs text-slate-400 mt-1">Open note: —</p>{% endif %}
+                    {% if m.close_note %}<p class="text-xs text-emerald-600 mt-1">Close note: {{ m.close_note }}</p>{% else %}<p class="text-xs text-slate-400 mt-1">Close note: —</p>{% endif %}
+                    <p class="text-xs text-slate-400">{{ m.started_at|date:"M d" }} → {{ m.ended_at|date:"M d, H:i" }} {% if m.ended_by %}· removed by {{ m.ended_by }}{% endif %} {% if m.started_by %}· put by {{ m.started_by }}{% endif %}</p>
+                </div>
+            </div>
+            {% empty %}
+            <p class="text-sm text-slate-400">No recently closed holds.</p>
+            {% endfor %}
+        </div>
+        <div class="mt-4 pt-4 border-t border-slate-200 flex flex-wrap items-center justify-between gap-3 text-xs text-slate-500">
+            <span>Showing {{ past_page.object_list|length }} on page{% if past_q %} for "{{ past_q }}"{% endif %}</span>
+            <div class="flex items-center gap-2">
+                {% if past_page.has_previous %}<a href="?{{ past_querystring }}past_cursor={{ past_page.prev_cursor }}" class="px-2.5 py-1 rounded-lg border border-slate-300 bg-white hover:bg-slate-50 font-medium text-slate-700">← Prev</a>{% else %}<span class="px-2.5 py-1 rounded-lg border border-slate-200 bg-slate-50 text-slate-300">← Prev</span>{% endif %}
+                {% if past_page.has_next %}<a href="?{{ past_querystring }}past_cursor={{ past_page.next_cursor }}" class="px-2.5 py-1 rounded-lg border border-slate-300 bg-white hover:bg-slate-50 font-medium text-slate-700">Next →</a>{% else %}<span class="px-2.5 py-1 rounded-lg border border-slate-200 bg-slate-50 text-slate-300">Next →</span>{% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

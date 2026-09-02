@@ -1,15 +1,13 @@
 {% extends 'base.html' %}
-
 {% block content %}
 <div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
     <div class="px-6 py-5 border-b border-slate-200 flex flex-wrap items-center justify-between gap-3">
         <div>
-            <h3 class="font-bold text-slate-800">Seat Release Reasons</h3>
-            <p class="text-sm text-slate-500">Reasons offered in the release dropdown. Past releases keep the reason they were given.</p>
+            <h3 class="font-bold text-slate-800">Seat Maintenance Reasons</h3>
+            <p class="text-sm text-slate-500">Reasons offered in the maintenance dropdown. Deletion blocked when used. Hall managers can add/edit own reasons.</p>
         </div>
-        <a href="{% url 'adminpanel:reason_add' %}" class="px-4 py-2.5 rounded-lg bg-indigo-600 text-white text-sm font-bold hover:bg-indigo-700 transition">+ Add Reason</a>
+        <a href="{% url 'adminpanel:maintenance_reason_add' %}" class="px-4 py-2.5 rounded-lg bg-amber-100 hover:bg-amber-200 text-amber-700 border border-amber-200 text-sm font-bold transition">+ Add Reason</a>
     </div>
-
     <div class="overflow-x-auto">
         <table class="w-full text-sm">
             <thead>
@@ -28,27 +26,23 @@
                     <td class="px-6 py-3.5 font-semibold text-slate-800">{{ obj.name }}</td>
                     <td class="px-6 py-3.5 text-slate-600">{{ obj.sort_order }}</td>
                     <td class="px-6 py-3.5">
-                        {% if obj.is_active %}
-                        <span class="text-[11px] font-bold uppercase bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded-full">Active</span>
-                        {% else %}
-                        <span class="text-[11px] font-bold uppercase bg-slate-100 text-slate-500 px-2 py-0.5 rounded-full">Hidden</span>
-                        {% endif %}
+                        {% if obj.is_active %}<span class="text-[11px] font-bold uppercase bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded-full">Active</span>{% else %}<span class="text-[11px] font-bold uppercase bg-slate-100 text-slate-500 px-2 py-0.5 rounded-full">Hidden</span>{% endif %}
                     </td>
-                    <td class="px-6 py-3.5 text-xs text-slate-500">{% if obj.created_by %}{{ obj.created_by }}{% else %}<span class="text-slate-400">System</span>{% endif %}</td>
+                    <td class="px-6 py-3.5 text-slate-500 text-xs">{% if obj.created_by %}{{ obj.created_by }}{% else %}<span class="text-slate-400">System</span>{% endif %}</td>
                     <td class="px-6 py-3.5">
-                        {% if obj.usage_count > 0 %}<span class="text-xs bg-indigo-100 text-indigo-700 px-2 py-0.5 rounded-full font-bold">{{ obj.usage_count }} in use</span>{% else %}<span class="text-xs bg-slate-100 text-slate-500 px-2 py-0.5 rounded-full">Unused</span>{% endif %}
+                        {% if obj.usage_count > 0 %}<span class="text-xs bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full font-bold">{{ obj.usage_count }} in use</span>{% else %}<span class="text-xs bg-slate-100 text-slate-500 px-2 py-0.5 rounded-full">Unused</span>{% endif %}
                     </td>
                     <td class="px-6 py-3.5 text-right space-x-2 whitespace-nowrap">
-                        <a href="{% url 'adminpanel:reason_edit' obj.pk %}" class="text-indigo-600 hover:text-indigo-800 font-semibold text-xs uppercase">Edit</a>
+                        <a href="{% url 'adminpanel:maintenance_reason_edit' obj.pk %}" class="text-indigo-600 hover:text-indigo-800 font-semibold text-xs uppercase">Edit</a>
                         {% if obj.usage_count == 0 %}
-                        <a href="{% url 'adminpanel:reason_delete' obj.pk %}" class="text-red-500 hover:text-red-700 font-semibold text-xs uppercase">Delete</a>
+                        <a href="{% url 'adminpanel:maintenance_reason_delete' obj.pk %}" class="text-red-500 hover:text-red-700 font-semibold text-xs uppercase">Delete</a>
                         {% else %}
                         <span class="text-slate-300 font-semibold text-xs uppercase cursor-not-allowed" title="Cannot delete while in use">Delete</span>
                         {% endif %}
                     </td>
                 </tr>
                 {% empty %}
-                <tr><td colspan="6" class="px-6 py-10 text-center text-slate-400">No release reasons defined.</td></tr>
+                <tr><td colspan="6" class="px-6 py-10 text-center text-slate-400">No maintenance reasons defined.</td></tr>
                 {% endfor %}
             </tbody>
         </table>

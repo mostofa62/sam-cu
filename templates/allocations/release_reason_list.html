@@ -1,0 +1,54 @@
+{% extends 'base.html' %}
+{% block content %}
+<div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+    <div class="px-6 py-5 border-b border-slate-200 flex flex-wrap items-center justify-between gap-3">
+        <div>
+            <h3 class="font-bold text-slate-800">Release Reasons</h3>
+            <p class="text-sm text-slate-500">You can add reasons and edit your own. Default/system reasons are read-only. Only admins can delete unused reasons.</p>
+        </div>
+        <a href="{% url 'allocations:release_reason_add' %}" class="px-4 py-2.5 rounded-lg bg-indigo-100 hover:bg-indigo-200 text-indigo-700 border border-indigo-200 text-sm font-bold transition">+ Add Reason</a>
+    </div>
+    <div class="overflow-x-auto">
+        <table class="w-full text-sm">
+            <thead>
+                <tr class="bg-slate-50 text-slate-500 uppercase text-xs tracking-wider">
+                    <th class="px-6 py-3 text-left font-semibold">Reason</th>
+                    <th class="px-6 py-3 text-left font-semibold">Status</th>
+                    <th class="px-6 py-3 text-left font-semibold">Created by</th>
+                    <th class="px-6 py-3 text-left font-semibold">Usage</th>
+                    <th class="px-6 py-3 text-right font-semibold">Actions</th>
+                </tr>
+            </thead>
+            <tbody class="divide-y divide-slate-100">
+                {% for obj in reasons %}
+                <tr class="hover:bg-slate-50">
+                    <td class="px-6 py-3.5 font-semibold text-slate-800">{{ obj.name }}</td>
+                    <td class="px-6 py-3.5">
+                        {% if obj.is_active %}<span class="text-[11px] font-bold uppercase bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded-full">Active</span>{% else %}<span class="text-[11px] font-bold uppercase bg-slate-100 text-slate-500 px-2 py-0.5 rounded-full">Hidden</span>{% endif %}
+                    </td>
+                    <td class="px-6 py-3.5 text-xs text-slate-500">{% if obj.created_by %}{{ obj.created_by }}{% if obj.created_by_id == request.user.pk %} <span class="text-indigo-600">(you)</span>{% endif %}{% else %}<span class="text-slate-400">System</span>{% endif %}</td>
+                    <td class="px-6 py-3.5">
+                        {% if obj.usage_count > 0 %}<span class="text-xs bg-indigo-100 text-indigo-700 px-2 py-0.5 rounded-full font-bold">{{ obj.usage_count }} in use</span>{% else %}<span class="text-xs bg-slate-100 text-slate-500 px-2 py-0.5 rounded-full">Unused</span>{% endif %}
+                    </td>
+                    <td class="px-6 py-3.5 text-right space-x-2 whitespace-nowrap">
+                        {% if obj.created_by_id == request.user.pk or request.user.is_app_admin %}
+                        <a href="{% url 'allocations:release_reason_edit' obj.pk %}" class="text-indigo-600 hover:text-indigo-800 font-semibold text-xs uppercase">Edit</a>
+                        {% else %}
+                        <span class="text-slate-300 font-semibold text-xs uppercase cursor-not-allowed" title="Only owner or admin can edit">Edit</span>
+                        {% endif %}
+                        {% if request.user.is_app_admin %}
+                            {% if obj.usage_count == 0 %}
+                            <span class="text-slate-400 text-xs">| Delete in Admin → Release Reasons</span>
+                            {% endif %}
+                        {% endif %}
+                    </td>
+                </tr>
+                {% empty %}
+                <tr><td colspan="5" class="px-6 py-10 text-center text-slate-400">No release reasons defined.</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+<div class="mt-4 text-xs text-slate-400">Note: Hall managers cannot delete reasons. Admins delete only unused reasons from Administration → Release Reasons.</div>
+{% endblock %}

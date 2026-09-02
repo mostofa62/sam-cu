@@ -14,6 +14,7 @@ urlpatterns = [
     path('allocations/', include('allocations.urls')),
     path('slips/', include('slips.urls')),
     path('accounts/', include('accounts.urls')),
+    path('halls/', include('halls.urls')),
 ]
 
 if settings.DEBUG:
