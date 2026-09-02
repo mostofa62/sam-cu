@@ -140,16 +140,14 @@
                 </div>
                 <div class="text-center">
                     <div class="h-8 flex flex-col items-center justify-end pb-1">
-                        <span class="text-[10px] italic font-semibold text-slate-800 leading-none">{{ slip.signature_name }}</span>
+                        <span class="text-[10px] italic font-semibold text-slate-800 leading-none">{# slip.signature_name #}</span>
                     </div>
-                    <div class="border-t border-slate-800 w-[140px] mx-auto pt-1 text-[8px] font-bold leading-none">{{ slip.signature_title }}</div>
+                    <div class="border-t border-slate-800 w-[140px] mx-auto pt-1 text-[8px] font-bold leading-none">{# slip.signature_title | default:'Authorized' #} {{'Authorized Signature'}}</div>
                     <div class="text-[7px] text-slate-500 leading-none">{{ slip.hall_name_snapshot }}</div>
                     <div class="text-[6px] text-slate-400 font-mono leading-none">Auto · {{ slip.issued_at|date:"d/m/Y H:i" }} · {{ slip.event_date|date:"d/m/Y H:i" }}</div>
                 </div>
             </div>
-            <div class="mt-2 text-center">
-                <p class="text-[6px] text-slate-400 leading-none">Computer generated — no manual signature required · {{ slip.serial_number }}</p>
-            </div>
+
         </div>
         {% endfor %}
     </div>

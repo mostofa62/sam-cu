@@ -57,8 +57,8 @@ class Slip(models.Model):
     # Auto signature: name shown under signature line. Default = issued_by.full_name
     signature_name = models.CharField(max_length=150, blank=True,
                                       help_text='Name printed under signature line')
-    signature_title = models.CharField(max_length=150, blank=True, default='Hall Manager / Provost',
-                                       help_text='Title under signature')
+    signature_title = models.CharField(max_length=150, blank=True, default='',
+                                       help_text='Title under signature (left blank for manual signature)')
     remarks = models.TextField(blank=True)
 
     created_at = models.DateTimeField(auto_now_add=True)
@@ -137,12 +137,15 @@ class Slip(models.Model):
                             self.assignment_id = cand.pk
             except Exception:
                 pass
-        # Auto signature name
-        if not self.signature_name and self.issued_by_id:
-            try:
-                self.signature_name = self.issued_by.full_name or str(self.issued_by)
-            except Exception:
-                pass
+        # Signature left blank for manual signing — no auto-fill
+        if self.signature_name:
+            self.signature_name = self.signature_name.strip()
+        else:
+            self.signature_name = ''
+        if self.signature_title:
+            self.signature_title = self.signature_title.strip()
+        else:
+            self.signature_title = ''
         # Keep total_in_words in sync when total_amount is set directly
         if self.total_amount is not None:
             self.total_in_words = amount_to_words(self.total_amount)

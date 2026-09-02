@@ -278,8 +278,9 @@ def _create_slip_with_items(form, items_data, user, assignment=None):
                 slip.seat_label_snapshot = slip.seat.full_label
             except Exception:
                 slip.seat_label_snapshot = slip.seat.seat_label
-        if not slip.signature_name and user:
-            slip.signature_name = user.full_name or str(user)
+        # Leave signature blank for manual signing — no auto-fill
+        slip.signature_name = ''
+        slip.signature_title = ''
         # Auto-populate Bengali names from Student table
         if slip.student_id and (not slip.student_name_bn or not slip.father_name_bn):
             stu = Student.objects.filter(student_id=slip.student_id).first()
@@ -647,8 +648,9 @@ def slip_create_for_release(request):
                 slip = form.save(commit=False)
                 slip.slip_type = SlipType.RELEASE
                 slip.issued_by = request.user
-                if not slip.signature_name and request.user:
-                    slip.signature_name = request.user.full_name or str(request.user)
+                # Leave signature blank for manual signing
+                slip.signature_name = ''
+                slip.signature_title = ''
                 # Auto-populate remarks with release reason
                 if not slip.remarks and _tmp_sid2:
                     released_ass2 = SeatAssignment.objects.filter(

@@ -30,14 +30,19 @@ class SlipForm(forms.ModelForm):
             'father_name': forms.TextInput(attrs={'class': 'w-full px-4 py-3 rounded-lg border border-slate-300', 'placeholder': "Father's name"}),
             'subject': forms.TextInput(attrs={'class': 'w-full px-4 py-3 rounded-lg border border-slate-300', 'placeholder': 'Subject / Department'}),
             'subject_code': forms.TextInput(attrs={'class': 'w-full px-4 py-3 rounded-lg border border-slate-300', 'placeholder': 'Subject code'}),
-            'signature_name': forms.TextInput(attrs={'class': 'w-full px-4 py-3 rounded-lg border border-slate-300', 'placeholder': 'Auto from logged-in user if blank'}),
-            'signature_title': forms.TextInput(attrs={'class': 'w-full px-4 py-3 rounded-lg border border-slate-300'}),
+            'signature_name': forms.HiddenInput(),
+            'signature_title': forms.HiddenInput(),
             'remarks': forms.Textarea(attrs={'class': 'w-full px-4 py-3 rounded-lg border border-slate-300', 'rows': 2, 'placeholder': 'Optional remarks'}),
         }
 
     def __init__(self, *args, user=None, **kwargs):
         super().__init__(*args, **kwargs)
         self.user = user
+        # Signature left blank for manual signing — hide and make optional
+        self.fields['signature_name'].required = False
+        self.fields['signature_title'].required = False
+        self.fields['signature_name'].initial = ''
+        self.fields['signature_title'].initial = ''
         if user is not None:
             halls = user.visible_halls()
             self.fields['hall'].queryset = halls
