@@ -13,7 +13,7 @@ def home(request):
         is_active=True, seat__hall__in=visible_halls,
     ).values_list('seat_id', flat=True)
 
-    total_halls = visible_halls.count()
+    total_halls = visible_halls.exclude(code__isnull=True).exclude(code='').values('code').distinct().count()
     total_blocks = Block.objects.filter(hall__in=visible_halls).count()
     total_floors = Floor.objects.filter(hall__in=visible_halls).count()
     total_rooms = Room.objects.filter(hall__in=visible_halls).count()

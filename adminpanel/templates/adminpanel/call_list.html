@@ -27,7 +27,7 @@
         <div class="bg-indigo-50 border border-indigo-200 rounded-xl p-5 text-sm text-indigo-800">
             <p class="font-bold mb-1">Active call</p>
             {% if active_call %}
-            <p>Call <span class="font-mono font-bold">{{ active_call.call_id }}</span> ({{ active_call.year }}, #{{ active_call.sequence }}) is the allocation source for seat assignments.</p>
+            <p>Call <span class="font-mono font-bold">{{ active_call.call_id }}</span> ({{ active_call.year }}, {{ active_call.sequence|stringformat:"02d" }} — {{ active_call.call_month_name }}) is the allocation source for seat assignments.</p>
             {% else %}
             <p>No active call — assignment validation against the merit list is skipped until a call is imported and activated.</p>
             {% endif %}
@@ -58,7 +58,7 @@
                             {{ call.call_id }}
                             {% if call.is_active %}<span class="ml-1 align-middle text-[11px] font-bold uppercase bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded-full">Active</span>{% endif %}
                         </td>
-                        <td class="px-5 py-3.5 text-slate-600">{{ call.year }} / #{{ call.sequence }}</td>
+                        <td class="px-5 py-3.5 text-slate-600">{{ call.year }} / {{ call.sequence|stringformat:"02d" }} <span class="text-slate-400">({{ call.call_month_name }})</span></td>
                         <td class="px-5 py-3.5 text-slate-600">{{ call.allotment_total }}
                             <a href="{% url 'allocations:allotments' %}?call={{ call.call_id }}" class="text-indigo-600 hover:text-indigo-800 text-xs font-semibold uppercase ml-1">view</a>
                         </td>

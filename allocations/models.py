@@ -1,3 +1,4 @@
+import calendar
 import re
 
 from django.conf import settings
@@ -78,6 +79,36 @@ class AllocationCall(models.Model):
         if not cls.CALL_ID_REGEX.match(call_id or ''):
             raise ValueError('Call ID must be exactly 6 digits in YYYYNN format, e.g. 202601.')
         return int(call_id[:4]), int(call_id[4:])
+
+    @property
+    def call_month(self):
+        """Last two digits parsed as month (sequence). Returns int 1-99."""
+        try:
+            return int(self.sequence)
+        except Exception:
+            return self.sequence
+
+    @property
+    def call_month_name(self):
+        """Month name derived from sequence (01=January ... 12=December). Falls back to 'Call N'."""
+        try:
+            m = int(self.sequence)
+            if 1 <= m <= 12:
+                return calendar.month_name[m]
+            return f'Call {m}'
+        except Exception:
+            return str(self.sequence)
+
+    @property
+    def call_month_short(self):
+        """Short month name (Jan, Feb ...). Falls back to sequence."""
+        try:
+            m = int(self.sequence)
+            if 1 <= m <= 12:
+                return calendar.month_abbr[m]
+            return f'#{m}'
+        except Exception:
+            return str(self.sequence)
 
 
 class HallAllocation(models.Model):

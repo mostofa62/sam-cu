@@ -14,7 +14,7 @@
                 {% if active_call %}
                     {{ active_call.call_id }}
                     <span class="text-sm font-medium text-emerald-700">
-                        — year {{ active_call.year }}, call #{{ active_call.sequence }} · imported {{ active_call.imported_at|date:'d M Y, H:i' }}
+                        — year {{ active_call.year }}, call month {{ active_call.sequence|stringformat:"02d" }} ({{ active_call.call_month_name }}) · imported {{ active_call.imported_at|date:'d M Y, H:i' }}
                     </span>
                 {% else %}
                     No call imported yet
@@ -105,7 +105,7 @@
                 <tr class="text-left text-[11px] uppercase tracking-wide text-slate-400 border-b border-slate-200">
                     <th class="px-5 py-2.5 font-semibold">Call ID</th>
                     <th class="px-5 py-2.5 font-semibold">Year</th>
-                    <th class="px-5 py-2.5 font-semibold">Call #</th>
+                    <th class="px-5 py-2.5 font-semibold">Call Month</th>
                     <th class="px-5 py-2.5 font-semibold">Allotments</th>
                     <th class="px-5 py-2.5 font-semibold">Imported By</th>
                     <th class="px-5 py-2.5 font-semibold">Status</th>
@@ -117,7 +117,7 @@
                 <tr class="border-b border-slate-100 last:border-0">
                     <td class="px-5 py-2.5 font-mono font-semibold text-slate-700">{{ call.call_id }}</td>
                     <td class="px-5 py-2.5">{{ call.year }}</td>
-                    <td class="px-5 py-2.5">#{{ call.sequence }}</td>
+                    <td class="px-5 py-2.5">{{ call.sequence|stringformat:"02d" }} <span class="text-slate-500">({{ call.call_month_name }})</span></td>
                     <td class="px-5 py-2.5">{{ call.allotments.count }}</td>
                     <td class="px-5 py-2.5 text-slate-500">{{ call.imported_by|default:'—' }}</td>
                     <td class="px-5 py-2.5">

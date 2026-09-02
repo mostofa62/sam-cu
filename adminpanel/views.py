@@ -162,7 +162,7 @@ class IndexView(AdminPanelRequiredMixin, ListView):
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         context['page_title'] = 'Administration'
-        context['hall_count'] = Hall.objects.count()
+        context['hall_count'] = Hall.objects.exclude(code__isnull=True).exclude(code='').values('code').distinct().count()
         context['block_count'] = Block.objects.count()
         context['floor_count'] = Floor.objects.count()
         context['room_count'] = Room.objects.count()
