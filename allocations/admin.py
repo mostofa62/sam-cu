@@ -3,9 +3,9 @@ from django.contrib import admin
 from hsm.admin_site import hsm_admin_site
 
 from .models import (ActionChoices, AllocationCall, HallAllocation,
-                     MaintenanceActionChoices, SeatAssignment, SeatAssignmentLog,
-                     SeatMaintenance, SeatMaintenanceLog, SeatMaintenanceReason,
-                     SeatReleaseReason)
+                     MaintenanceActionChoices, ResolveRequest, SeatAssignment,
+                     SeatAssignmentLog, SeatMaintenance, SeatMaintenanceLog,
+                     SeatMaintenanceReason, SeatReleaseReason)
 
 
 @admin.register(AllocationCall, site=hsm_admin_site)
@@ -149,3 +149,11 @@ class SeatMaintenanceLogAdmin(admin.ModelAdmin):
 
     def has_delete_permission(self, request, obj=None):
         return False
+
+
+@admin.register(ResolveRequest, site=hsm_admin_site)
+class ResolveRequestAdmin(admin.ModelAdmin):
+    list_display = ('id', 'request_type', 'status', 'student_id', 'seat', 'hall', 'requested_by', 'requested_at', 'resolved_by', 'resolved_at')
+    list_filter = ('status', 'request_type', 'hall')
+    search_fields = ('student_id', 'reason', 'seat__seat_number')
+    readonly_fields = ('snapshot', 'requested_by', 'requested_at', 'resolved_by', 'resolved_at', 'hall', 'seat', 'student_id', 'assignment')

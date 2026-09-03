@@ -56,8 +56,15 @@
                     </td>
                     <td class="px-6 py-4 text-slate-500">{{ a.assigned_at|date:"M d, Y H:i" }}</td>
                     <td class="px-6 py-4 text-right">
+                        {% if a.pk in pending_ids %}
+                        <div class="inline-flex items-center gap-1.5">
+                            <span class="px-2 py-1 rounded-full bg-amber-100 text-amber-700 text-[11px] font-bold uppercase">Pending Resolve</span>
+                            <span class="px-3 py-1.5 rounded-lg bg-slate-100 text-slate-400 text-xs font-bold cursor-not-allowed" title="Locked - pending resolve request">Locked</span>
+                        </div>
+                        {% else %}
                         <div class="inline-flex items-center gap-1.5">
                             <a href="{% url 'slips:from_assignment' a.pk %}" title="Create assign slip for this assignment" class="px-3 py-1.5 rounded-lg bg-indigo-50 text-indigo-700 text-xs font-bold hover:bg-indigo-100">Slip</a>
+                            <a href="{% url 'allocations:resolve_create' a.pk %}" title="Request admin to resolve/delete this mistaken assignment" class="px-3 py-1.5 rounded-lg bg-amber-50 text-amber-700 text-xs font-bold hover:bg-amber-100">Resolve</a>
                             <form method="get" action="{% url 'allocations:revoke_assignment' a.pk %}" class="inline-flex items-center gap-1.5">
                                 <select name="reason" required
                                         title="Pick the release reason, then press Release"
@@ -69,6 +76,7 @@
                                         class="px-3 py-1.5 rounded-lg bg-rose-50 text-rose-600 text-xs font-bold hover:bg-rose-100 transition">Release</button>
                             </form>
                         </div>
+                        {% endif %}
                     </td>
                 </tr>
                 {% empty %}
@@ -120,6 +128,7 @@
                     <th class="px-6 py-3 text-left font-semibold">Reason</th>
                     <th class="px-6 py-3 text-left font-semibold">By</th>
                     <th class="px-6 py-3 text-left font-semibold">Time</th>
+                    <th class="px-6 py-3 text-right font-semibold">Resolve</th>
                 </tr>
             </thead>
             <tbody class="divide-y divide-slate-100">
@@ -145,10 +154,21 @@
                     </td>
                     <td class="px-6 py-3 text-slate-500">{{ log.performed_by|default:'—' }}</td>
                     <td class="px-6 py-3 text-slate-500">{{ log.created_at|date:"M d, Y H:i" }}</td>
+                    <td class="px-6 py-3 text-right">
+                        {% if log.resolve_assignment %}
+                            {% if log.resolve_assignment.pk in pending_ids or log.resolve_blocked %}
+                                <span class="px-2 py-1 rounded-full bg-amber-100 text-amber-700 text-[11px] font-bold uppercase" title="Locked by pending resolve">Pending</span>
+                            {% else %}
+                                <a href="{% url 'allocations:resolve_create' log.resolve_assignment.pk %}?log_action={{ log.action }}" title="Request resolve for this {% if log.action == 'released' %}mistaken release{% else %}mistaken assign{% endif %} ({{ log.resolve_assignment.student_id }} @ {{ log.resolve_assignment.seat.seat_label }})" class="px-3 py-1.5 rounded-lg bg-amber-50 text-amber-700 text-xs font-bold hover:bg-amber-100">Resolve</a>
+                            {% endif %}
+                        {% else %}
+                            <span class="text-slate-300 text-xs">—</span>
+                        {% endif %}
+                    </td>
                 </tr>
                 {% empty %}
                 <tr>
-                    <td colspan="7" class="px-6 py-10 text-center text-slate-400">No activity yet.</td>
+                    <td colspan="8" class="px-6 py-10 text-center text-slate-400">No activity yet.</td>
                 </tr>
                 {% endfor %}
             </tbody>
