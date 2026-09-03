@@ -252,8 +252,23 @@ def student_lookup_json(request):
     })
 
 
+def _check_slip_blocked(assignment=None, student_id=None, seat=None):
+    """Raise ValidationError if assignment/row is locked by pending resolve request."""
+    from allocations.models import ResolveStatus, ResolveRequest
+    if assignment is not None:
+        if ResolveRequest.objects.filter(assignment=assignment, status=ResolveStatus.PENDING).exists():
+            raise ValidationError(f'Slip creation blocked — assignment {assignment.pk} is locked by a pending resolve request.')
+    if student_id and seat:
+        if ResolveRequest.objects.filter(student_id=student_id, seat=seat, status=ResolveStatus.PENDING).exists():
+            raise ValidationError(f'Slip creation blocked — seat {seat.seat_label} for {student_id} is locked by a pending resolve request.')
+
 def _create_slip_with_items(form, items_data, user, assignment=None):
     """Save slip and its items atomically; recalc total."""
+    # Block check
+    try:
+        _check_slip_blocked(assignment=assignment, student_id=form.cleaned_data.get('student_id') if hasattr(form, 'cleaned_data') else None, seat=form.cleaned_data.get('seat') if hasattr(form, 'cleaned_data') else None)
+    except ValidationError as e:
+        raise
     with transaction.atomic():
         slip = form.save(commit=False)
         slip.issued_by = user

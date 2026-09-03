@@ -11,14 +11,17 @@ from halls.models import Room, Seat
 from students.models import Student
 
 from .forms import (AssignForm, ImportAllocationsForm, MaintenanceForm,
-                     MaintenanceReasonForm, ReleaseReasonForm, RevokeForm)
+                     MaintenanceReasonForm, ReleaseReasonForm, ResolveRequestForm,
+                     RevokeForm)
 from .importer import import_allocations
-from .models import (AllocationCall, HallAllocation, OrderChoices, SeatAssignment,
+from .models import (AllocationCall, HallAllocation, OrderChoices, ResolveRequest,
+                     ResolveStatus, ResolveType, SeatAssignment,
                      SeatAssignmentLog, SeatMaintenance, SeatMaintenanceLog,
                      SeatMaintenanceReason, SeatReleaseReason)
-from .services import (assign_seat, put_seat_under_maintenance,
-                       remove_seat_from_maintenance, revoke_seat,
-                       validate_seat_assignable)
+from .services import (approve_resolve_request, assign_seat, build_resolve_snapshot,
+                       is_assignment_blocked, put_seat_under_maintenance,
+                       reject_resolve_request, remove_seat_from_maintenance,
+                       revoke_seat, validate_seat_assignable)
 
 
 def _student_record(student_id):
@@ -222,17 +225,60 @@ def active_assignments(request):
     assign_querystring = build_qs(['cursor'])
     log_querystring = build_qs(['log_cursor'])
 
+    # Pending resolve block: collect assignment ids that are locked
+    pending_ids = set(
+        ResolveRequest.objects.filter(status=ResolveStatus.PENDING, assignment__isnull=False)
+        .filter(assignment__seat__hall__in=visible_halls)
+        .values_list('assignment_id', flat=True)
+    )
+    pending_count = ResolveRequest.objects.filter(status=ResolveStatus.PENDING).filter(
+        Q(hall__in=visible_halls) | Q(seat__hall__in=visible_halls)
+    ).count() if not request.user.is_app_admin else ResolveRequest.objects.filter(status=ResolveStatus.PENDING).count()
+
+    # Enrich Recent Activity logs with their underlying SeatAssignment (active or released)
+    # so a manager can request resolve directly from a release log even when the
+    # assignment is inactive (is_active=False) and thus not in the top table.
+    logs_enriched = list(log_page.object_list)
+    if logs_enriched:
+        # Bulk lookup: (student_id, seat_id) -> latest SeatAssignment (active or not)
+        log_student_ids = {l.student_id for l in logs_enriched if l.student_id}
+        log_seat_ids = {l.seat_id for l in logs_enriched if l.seat_id}
+        # Fetch all candidate assignments in one query
+        cand_assigns = list(
+            SeatAssignment.objects.filter(
+                student_id__in=log_student_ids,
+                seat_id__in=log_seat_ids,
+                seat__hall__in=visible_halls,
+            ).select_related('seat__hall', 'seat__room').order_by('-assigned_at', '-pk')
+        )
+        # Build lookup: keep first (latest) per (student_id, seat_id)
+        assign_lookup = {}
+        for a in cand_assigns:
+            key = (a.student_id, a.seat_id)
+            if key not in assign_lookup:
+                assign_lookup[key] = a
+        for log in logs_enriched:
+            key = (log.student_id, log.seat_id)
+            target = assign_lookup.get(key)
+            # Attach for template: log.resolve_assignment / log.resolve_blocked
+            log.resolve_assignment = target  # may be None if already deleted
+            log.resolve_blocked = target.pk in pending_ids if target else False
+    else:
+        logs_enriched = []
+
     context = {
         'page_title': 'Active Assignments',
         'assignments': assign_page.object_list,
         'assign_page': assign_page,
         'assign_querystring': assign_querystring,
         'q': q,
-        'logs': log_page.object_list,
+        'logs': logs_enriched,
         'log_page': log_page,
         'log_querystring': log_querystring,
         'log_q': log_q,
         'release_reasons': SeatReleaseReason.objects.filter(is_active=True),
+        'pending_ids': pending_ids,
+        'pending_count': pending_count,
     }
     return render(request, 'allocations/assignments.html', context)
 
@@ -244,6 +290,10 @@ def revoke_assignment(request, pk):
         pk=pk, is_active=True,
         seat__hall__in=request.user.visible_halls(),
     )
+    # Block if pending resolve request exists for this assignment
+    if is_assignment_blocked(assignment):
+        messages.error(request, f'Assignment {assignment.student_id} @ {assignment.seat.seat_label} is locked — a pending resolve request exists. Wait for admin to resolve.')
+        return redirect('allocations:active_assignments')
     if request.method == 'POST':
         reason_id = request.POST.get('reason')
         if not reason_id:
@@ -802,3 +852,160 @@ def delete_allotments(request):
     if AllocationCall.CALL_ID_REGEX.match(next_call):
         return redirect(f"{reverse('allocations:allotments')}?call={next_call}")
     return redirect('allocations:allotments')
+
+
+# --------------------------------------------------------------------------- #
+# Resolve Requests – hall manager requests admin to delete mistaken assignment
+# --------------------------------------------------------------------------- #
+
+@login_required
+def resolve_request_create(request, pk):
+    """Hall manager creates a resolve request for a SeatAssignment (any status)."""
+    assignment = get_object_or_404(
+        SeatAssignment.objects.select_related('seat__room__floor__block', 'seat__hall'),
+        pk=pk,
+        seat__hall__in=request.user.visible_halls(),
+    )
+    if is_assignment_blocked(assignment):
+        messages.error(request, f'Assignment {assignment.student_id} @ {assignment.seat.seat_label} already has a pending resolve request.')
+        return redirect('allocations:active_assignments')
+    # Allow both active and released to be requested; if released, still block
+    if request.method == 'POST':
+        form = ResolveRequestForm(request.POST)
+        if form.is_valid():
+            try:
+                snapshot = build_resolve_snapshot(assignment)
+            except Exception:
+                snapshot = {}
+            # Enrich snapshot with requester info (both ISO + display)
+            now = timezone.now()
+            snapshot['requested_by'] = str(request.user)
+            snapshot['requested_at'] = now.isoformat()
+            try:
+                snapshot['requested_at_display'] = timezone.localtime(now).strftime('%d %b %Y, %I:%M %p')
+            except Exception:
+                snapshot['requested_at_display'] = snapshot['requested_at']
+            req_type = form.cleaned_data['request_type']
+            # Auto-infer if not matching assignment state? keep user choice
+            resolve_req = ResolveRequest(
+                request_type=req_type,
+                hall=assignment.seat.hall,
+                seat=assignment.seat,
+                student_id=assignment.student_id,
+                assignment=assignment,
+                reason=form.cleaned_data['reason'],
+                requested_by=request.user,
+                snapshot=snapshot,
+            )
+            try:
+                resolve_req.save()
+            except Exception as e:
+                # Handle unique constraint violation (race)
+                messages.error(request, f'Could not create request: {e}')
+                return redirect('allocations:resolve_list')
+            messages.success(request, f'Resolve request created for {assignment.student_id} @ {assignment.seat.seat_label}. Awaiting admin approval. Row is now locked.')
+            return redirect('allocations:resolve_list')
+    else:
+        # Default type based on assignment state, but allow explicit override from
+        # Recent Activity log (action=assigned|released) via ?log_action=assigned.
+        # This is needed because an assigned log may map to an assignment that is
+        # now released (inactive), so basing solely on assignment.is_active would
+        # incorrectly preselect RELEASE for an assigned mistake.
+        log_action = (request.GET.get('log_action') or '').strip().lower()
+        if log_action in ('assigned', 'assign'):
+            initial_type = ResolveType.ASSIGN
+        elif log_action in ('released', 'release'):
+            initial_type = ResolveType.RELEASE
+        else:
+            initial_type = ResolveType.RELEASE if not assignment.is_active else ResolveType.ASSIGN
+        form = ResolveRequestForm(initial={'request_type': initial_type})
+    context = {
+        'page_title': 'Request Resolve',
+        'form': form,
+        'assignment': assignment,
+        'student': _student_record(assignment.student_id),
+    }
+    return render(request, 'allocations/resolve_form.html', context)
+
+
+@login_required
+def resolve_request_list(request):
+    visible_halls = request.user.visible_halls()
+    qs = ResolveRequest.objects.select_related('hall', 'seat__room', 'requested_by', 'resolved_by', 'assignment__seat__hall').order_by('-requested_at')
+    # Hall managers see only their hall's requests + their own; admins see all
+    if not request.user.is_app_admin:
+        qs = qs.filter(Q(hall__in=visible_halls) | Q(seat__hall__in=visible_halls) | Q(requested_by=request.user)).distinct()
+    # Filters
+    status_f = (request.GET.get('status') or '').strip()
+    q = (request.GET.get('q') or '').strip()
+    if status_f in (ResolveStatus.PENDING, ResolveStatus.RESOLVED, ResolveStatus.REJECTED):
+        qs = qs.filter(status=status_f)
+    if q:
+        qs = qs.filter(Q(student_id__icontains=q) | Q(seat__seat_number__icontains=q) | Q(hall__name__icontains=q) | Q(reason__icontains=q))
+
+    from adminpanel.pagination import CursorPaginator
+    paginator = CursorPaginator(qs, page_size=20, order_field='pk', reverse=True)
+    page = paginator.page(request.GET.get('cursor'))
+    params = request.GET.copy()
+    params.pop('cursor', None)
+    qs_str = params.urlencode()
+    querystring = f'{qs_str}&' if qs_str else ''
+    context = {
+        'page_title': 'Resolve Requests',
+        'objects': page.object_list,
+        'page_obj': page,
+        'querystring': querystring,
+        'q': q,
+        'status': status_f,
+        'status_choices': ResolveStatus.choices,
+    }
+    return render(request, 'allocations/resolve_list.html', context)
+
+
+@login_required
+def resolve_request_detail(request, pk):
+    qs = ResolveRequest.objects.select_related('hall', 'seat__room__floor__block', 'requested_by', 'resolved_by', 'assignment__seat__hall')
+    # Manager can view only their hall's or their own; admin can view all
+    if not request.user.is_app_admin:
+        qs = qs.filter(Q(hall__in=request.user.visible_halls()) | Q(seat__hall__in=request.user.visible_halls()) | Q(requested_by=request.user))
+    obj = get_object_or_404(qs, pk=pk)
+    context = {
+        'page_title': f'Resolve #{obj.pk} - {obj.get_status_display()}',
+        'obj': obj,
+        'can_resolve': request.user.is_app_admin and obj.status == ResolveStatus.PENDING,
+    }
+    return render(request, 'allocations/resolve_detail.html', context)
+
+
+@login_required
+def resolve_request_approve(request, pk):
+    if not request.user.is_app_admin:
+        messages.error(request, 'Only administrators can resolve requests.')
+        return redirect('allocations:resolve_list')
+    obj = get_object_or_404(ResolveRequest, pk=pk, status=ResolveStatus.PENDING)
+    if request.method != 'POST':
+        return redirect('allocations:resolve_detail', pk=pk)
+    note = (request.POST.get('resolution_note') or '').strip()
+    try:
+        approve_resolve_request(obj, request.user, resolution_note=note)
+        messages.success(request, f'Resolve request #{obj.pk} approved — assignment and associated slips deleted. Audit log retained.')
+    except ValidationError as e:
+        messages.error(request, str(e))
+    return redirect('allocations:resolve_list')
+
+
+@login_required
+def resolve_request_reject(request, pk):
+    if not request.user.is_app_admin:
+        messages.error(request, 'Only administrators can reject requests.')
+        return redirect('allocations:resolve_list')
+    obj = get_object_or_404(ResolveRequest, pk=pk, status=ResolveStatus.PENDING)
+    if request.method != 'POST':
+        return redirect('allocations:resolve_detail', pk=pk)
+    note = (request.POST.get('resolution_note') or '').strip()
+    try:
+        reject_resolve_request(obj, request.user, resolution_note=note)
+        messages.success(request, f'Resolve request #{obj.pk} rejected — row unlocked.')
+    except ValidationError as e:
+        messages.error(request, str(e))
+    return redirect('allocations:resolve_list')

@@ -396,3 +396,149 @@ class SeatMaintenanceLog(models.Model):
 
     def __str__(self):
         return f'{self.get_action_display()}: {self.seat.seat_label} by {self.performed_by_id}'
+
+
+class ResolveStatus(models.TextChoices):
+    PENDING = 'pending', 'Pending'
+    RESOLVED = 'resolved', 'Resolved'
+    REJECTED = 'rejected', 'Rejected'
+
+
+class ResolveType(models.TextChoices):
+    ASSIGN = 'assign', 'Mistaken Assign'
+    RELEASE = 'release', 'Mistaken Release'
+
+
+class ResolveRequest(models.Model):
+    """Hall manager asks admin to delete a mistaken SeatAssignment (+ slips).
+
+    While PENDING the target SeatAssignment is BLOCKED (no release/slip/etc).
+    On RESOLVED admin deletes the row + associated slips and keeps the
+    JSON snapshot as audit log visible to requester + auditors.
+    """
+
+    request_type = models.CharField(max_length=10, choices=ResolveType.choices, db_index=True)
+    status = models.CharField(max_length=10, choices=ResolveStatus.choices, default=ResolveStatus.PENDING, db_index=True)
+
+    hall = models.ForeignKey('halls.Hall', on_delete=models.SET_NULL, null=True, blank=True, related_name='resolve_requests')
+    seat = models.ForeignKey(Seat, on_delete=models.SET_NULL, null=True, blank=True, related_name='resolve_requests')
+    student_id = models.CharField(max_length=50, db_index=True)
+
+    # Target assignment to delete (nulled after deletion, but kept in snapshot)
+    assignment = models.ForeignKey(SeatAssignment, on_delete=models.SET_NULL, null=True, blank=True, related_name='resolve_requests')
+
+    reason = models.TextField(help_text='Why this assignment/release was mistaken.')
+    requested_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name='resolve_requests')
+    requested_at = models.DateTimeField(auto_now_add=True, db_index=True)
+
+    resolved_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name='resolved_requests')
+    resolved_at = models.DateTimeField(null=True, blank=True)
+    resolution_note = models.TextField(blank=True)
+
+    # Overall summary snapshot: assignment + logs + slips + seat labels etc.
+    snapshot = models.JSONField(default=dict, blank=True)
+
+    class Meta:
+        verbose_name = 'Resolve Request'
+        verbose_name_plural = 'Resolve Requests'
+        ordering = ['-requested_at']
+        constraints = [
+            models.UniqueConstraint(
+                fields=['assignment'],
+                condition=models.Q(status='pending'),
+                name='unique_pending_per_assignment',
+            ),
+        ]
+
+    def __str__(self):
+        return f'{self.get_request_type_display()} {self.student_id} - {self.status}'
+
+    @property
+    def is_pending(self):
+        return self.status == ResolveStatus.PENDING
+
+    @property
+    def hall_name(self):
+        if self.hall_id:
+            try:
+                return self.hall.name
+            except Exception:
+                pass
+        return (self.snapshot.get('hall') or {}).get('name') or ''
+
+    @property
+    def seat_label(self):
+        if self.seat_id:
+            try:
+                return self.seat.full_label
+            except Exception:
+                try:
+                    return self.seat.seat_label
+                except Exception:
+                    pass
+        snap = self.snapshot.get('seat') or {}
+        return snap.get('full_label') or snap.get('seat_label') or ''
+
+    # -- snapshot date formatting helpers ---------------------------------- #
+    @staticmethod
+    def _fmt_iso(iso_str):
+        """'2026-09-03T10:30:00+06:00' -> '03 Sep 2026, 10:30 AM' (Dhaka)."""
+        if not iso_str:
+            return ''
+        from django.utils import timezone as _tz
+        from django.utils.dateparse import parse_datetime
+        try:
+            dt = parse_datetime(str(iso_str))
+            if dt is None:
+                return str(iso_str)
+            if _tz.is_naive(dt):
+                dt = _tz.make_aware(dt)
+            return _tz.localtime(dt).strftime('%d %b %Y, %I:%M %p')
+        except Exception:
+            return str(iso_str)
+
+    @property
+    def snapshot_display(self):
+        """Snapshot with guaranteed `_display` fields for older rows.
+
+        Older snapshots (before the _display migration) only have ISO strings.
+        This property backfills `_display` on the fly so templates can rely on
+        `assigned_at_display` etc without a data migration.
+        """
+        snap = dict(self.snapshot or {})
+        # assignment dates
+        ass = snap.get('assignment')
+        if isinstance(ass, dict):
+            if ass.get('assigned_at') and not ass.get('assigned_at_display'):
+                ass['assigned_at_display'] = self._fmt_iso(ass['assigned_at'])
+            if ass.get('released_at') and not ass.get('released_at_display'):
+                ass['released_at_display'] = self._fmt_iso(ass['released_at'])
+        # logs
+        for log in snap.get('logs') or []:
+            if isinstance(log, dict) and log.get('created_at') and not log.get('created_at_display'):
+                log['created_at_display'] = self._fmt_iso(log['created_at'])
+        # slips
+        for slip in snap.get('slips') or []:
+            if isinstance(slip, dict):
+                if slip.get('issued_at') and not slip.get('issued_at_display'):
+                    slip['issued_at_display'] = self._fmt_iso(slip['issued_at'])
+                if slip.get('event_date') and not slip.get('event_date_display'):
+                    slip['event_date_display'] = self._fmt_iso(slip['event_date'])
+        if snap.get('resolved_at') and not snap.get('resolved_at_display'):
+            snap['resolved_at_display'] = self._fmt_iso(snap['resolved_at'])
+        if snap.get('requested_at') and not snap.get('requested_at_display'):
+            snap['requested_at_display'] = self._fmt_iso(snap['requested_at'])
+        return snap
+
+    def save(self, *args, **kwargs):
+        # Ensure snapshot always has display variants for newly-added date fields
+        if self.snapshot:
+            try:
+                snap = dict(self.snapshot)
+                # Backwards compat: enrich if missing
+                if 'requested_at' in snap and not snap.get('requested_at_display'):
+                    snap['requested_at_display'] = self._fmt_iso(snap['requested_at'])
+                self.snapshot = snap
+            except Exception:
+                pass
+        super().save(*args, **kwargs)

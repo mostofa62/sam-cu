@@ -1,0 +1,176 @@
+{% extends 'base.html' %}
+{% block content %}
+<div class="max-w-4xl mx-auto space-y-6">
+    <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
+        <div class="flex items-start justify-between gap-4">
+            <div>
+                <h3 class="font-bold text-slate-800 text-lg">Resolve Request #{{ obj.pk }}</h3>
+                <p class="text-sm text-slate-500">{{ obj.get_request_type_display }} • {{ obj.student_id }} • {{ obj.seat_label }}</p>
+            </div>
+            {% if obj.status == 'pending' %}<span class="px-3 py-1 rounded-full bg-amber-100 text-amber-700 text-xs font-bold uppercase">Pending</span>
+            {% elif obj.status == 'resolved' %}<span class="px-3 py-1 rounded-full bg-emerald-100 text-emerald-700 text-xs font-bold uppercase">Resolved</span>
+            {% else %}<span class="px-3 py-1 rounded-full bg-slate-200 text-slate-700 text-xs font-bold uppercase">Rejected</span>{% endif %}
+        </div>
+        <div class="grid grid-cols-2 gap-4 mt-4 text-sm">
+            <div><span class="text-slate-500">Hall:</span> <span class="font-semibold">{{ obj.hall_name|default:obj.hall.name }}</span></div>
+            <div><span class="text-slate-500">Seat:</span> <span class="font-semibold">{{ obj.seat_label }}</span></div>
+            <div><span class="text-slate-500">Requested by:</span> <span class="font-semibold">{{ obj.requested_by|default:'—' }}</span> <span class="text-xs text-slate-400">{{ obj.requested_at|date:"M d, Y H:i A" }}</span></div>
+            <div><span class="text-slate-500">Resolved by:</span> <span class="font-semibold">{{ obj.resolved_by|default:'—' }}</span> {% if obj.resolved_at %}<span class="text-xs text-slate-400">{{ obj.resolved_at|date:"M d, Y H:i A" }}</span>{% endif %}</div>
+        </div>
+        <div class="mt-4">
+            <p class="text-xs font-bold uppercase tracking-wider text-slate-500">Manager Reason</p>
+            <p class="text-sm text-slate-700 bg-slate-50 rounded-lg p-3 mt-1 whitespace-pre-wrap">{{ obj.reason }}</p>
+        </div>
+        {% if obj.resolution_note %}
+        <div class="mt-3">
+            <p class="text-xs font-bold uppercase tracking-wider text-slate-500">Admin Note</p>
+            <p class="text-sm text-slate-700 bg-emerald-50 rounded-lg p-3 mt-1 whitespace-pre-wrap">{{ obj.resolution_note }}</p>
+        </div>
+        {% endif %}
+
+        {% if can_resolve %}
+        <div class="mt-6 border-t border-slate-200 pt-4">
+            {% if obj.request_type == 'release' %}
+            <p class="text-xs font-bold uppercase tracking-wider text-amber-600 mb-2">Admin Action – Release resolve: will REACTIVATE assignment & delete only release slip/log</p>
+            {% else %}
+            <p class="text-xs font-bold uppercase tracking-wider text-slate-500 mb-2">Admin Action – Assign resolve: will DELETE assignment + all associated slips</p>
+            {% endif %}
+            <div class="grid grid-cols-2 gap-3">
+                <form method="post" action="{% url 'allocations:resolve_approve' obj.pk %}" id="approve-form">
+                    {% csrf_token %}
+                    <input type="text" name="resolution_note" placeholder="Approve note (optional)" class="w-full px-3 py-2 rounded-lg border border-slate-300 text-sm mb-2">
+                    {% if obj.request_type == 'release' %}
+                    <button type="submit" id="approve-btn" class="w-full px-4 py-2.5 rounded-lg bg-emerald-600 text-white text-sm font-bold hover:bg-emerald-700">Approve &amp; Reactivate</button>
+                    {% else %}
+                    <button type="submit" id="approve-btn" class="w-full px-4 py-2.5 rounded-lg bg-emerald-600 text-white text-sm font-bold hover:bg-emerald-700">Approve &amp; Delete</button>
+                    {% endif %}
+                </form>
+                <form method="post" action="{% url 'allocations:resolve_reject' obj.pk %}" id="reject-form">
+                    {% csrf_token %}
+                    <input type="text" name="resolution_note" placeholder="Reject reason" class="w-full px-3 py-2 rounded-lg border border-slate-300 text-sm mb-2">
+                    <button type="submit" id="reject-btn" class="w-full px-4 py-2.5 rounded-lg bg-slate-200 text-slate-700 text-sm font-bold hover:bg-slate-300">Reject (Unlock)</button>
+                </form>
+            </div>
+        </div>
+        {% endif %}
+    </div>
+
+    <!-- Snapshot audit log – uses snapshot_display so both new and old rows show formatted dates -->
+    <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
+        <h4 class="font-bold text-slate-800 mb-3">Snapshot – What was deleted / audited</h4>
+        {% with snap=obj.snapshot_display %}
+        {% if snap.assignment %}
+        <div class="bg-slate-50 rounded-lg p-4 text-sm mb-3">
+            <p class="font-bold text-slate-700 mb-1">Assignment</p>
+            <p><span class="text-slate-500">Student:</span> {{ snap.assignment.student_id }} | <span class="text-slate-500">Order:</span> {{ snap.assignment.order_display }} | <span class="text-slate-500">Active:</span> {{ snap.assignment.is_active }}</p>
+            <p><span class="text-slate-500">Seat:</span> {{ snap.assignment.full_label }} | <span class="text-slate-500">Hall:</span> {{ snap.assignment.hall_name }}</p>
+            <p><span class="text-slate-500">Assigned:</span> {{ snap.assignment.assigned_at_display|default:snap.assignment.assigned_at }} {% if snap.assignment.released_at %}| <span class="text-slate-500">Released:</span> {{ snap.assignment.released_at_display|default:snap.assignment.released_at }} ({{ snap.assignment.released_reason }}){% endif %}</p>
+        </div>
+        {% endif %}
+        {% if snap.slips %}
+        <div class="mb-3">
+            <p class="font-bold text-slate-700 text-sm mb-2">Associated Slips (also deleted)</p>
+            <div class="space-y-2">
+                {% for s in snap.slips %}
+                <div class="border border-slate-200 rounded-lg p-3 text-sm">
+                    <p class="font-mono font-bold">{{ s.serial_number }} <span class="text-xs font-normal">({{ s.slip_type }})</span> – {{ s.total_amount }} Taka</p>
+                    <p class="text-xs text-slate-500">{{ s.student_id }} – {{ s.student_name }} | {{ s.hall_name }} | {{ s.seat_label }} | Event: {{ s.event_date_display|default:s.event_date }} | Issued: {{ s.issued_at_display|default:s.issued_at }}</p>
+                    {% if s.items %}<ul class="list-disc list-inside text-xs text-slate-600 mt-1">{% for it in s.items %}<li>{{ it.label }}: {{ it.amount }}</li>{% endfor %}</ul>{% endif %}
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+        {% else %}
+        <p class="text-sm text-slate-400 mb-3">No slips were linked to this assignment.</p>
+        {% endif %}
+        {% if snap.logs %}
+        <div>
+            <p class="font-bold text-slate-700 text-sm mb-2">Assignment Logs (snapshot)</p>
+            <table class="w-full text-xs border border-slate-200 rounded-lg overflow-hidden">
+                <thead class="bg-slate-50"><tr><th class="px-2 py-1 text-left">Action</th><th class="px-2 py-1 text-left">Order</th><th class="px-2 py-1 text-left">By</th><th class="px-2 py-1 text-left">At</th></tr></thead>
+                <tbody>
+                    {% for l in snap.logs %}<tr class="border-t border-slate-100"><td class="px-2 py-1">{{ l.action }}</td><td class="px-2 py-1">{{ l.order }}</td><td class="px-2 py-1">{{ l.performed_by|default:'—' }}</td><td class="px-2 py-1">{{ l.created_at_display|default:l.created_at }}</td></tr>{% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% endif %}
+        {% if snap.deleted_slip_ids %}<p class="text-xs text-slate-400 mt-3">Deleted slip IDs: {{ snap.deleted_slip_ids }}</p>{% endif %}
+        {% if snap.resolved_by %}<p class="text-xs text-slate-500 mt-2">Resolved by {{ snap.resolved_by }} at {{ snap.resolved_at_display|default:snap.resolved_at }}</p>{% endif %}
+        {% endwith %}
+    </div>
+    <a href="{% url 'allocations:resolve_list' %}" class="text-sm text-indigo-600 font-semibold">← Back to list</a>
+</div>
+{% endblock %}
+
+{% block scripts %}
+{% if can_resolve %}
+<script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+<script>
+(function () {
+    const approveForm = document.getElementById('approve-form');
+    const rejectForm = document.getElementById('reject-form');
+    if (!approveForm || !rejectForm) return;
+
+    function detailHtml(type) {
+        const student = "{{ obj.student_id|escapejs }}";
+        const seat = "{{ obj.seat_label|escapejs }}";
+        const hall = "{{ obj.hall_name|default:obj.hall.name|escapejs }}";
+        const reqType = "{{ obj.request_type|escapejs }}";
+        {% with snap=obj.snapshot_display %}
+        const slipCount = {{ snap.slips|length|default:0 }};
+        const slipSerials = "{% for s in snap.slips %}{{ s.serial_number|escapejs }}{% if not forloop.last %}, {% endif %}{% endfor %}";
+        const releaseSlipSerials = "{% for s in snap.slips %}{% if s.slip_type == 'release' %}{{ s.serial_number|escapejs }}{% if not forloop.last %}, {% endif %}{% endif %}{% endfor %}";
+        {% endwith %}
+        if (type === 'approve') {
+            if (reqType === 'release') {
+                return `<p style="margin-bottom:8px">Approve will <b>undo the release</b> – reactivate the seat for <b>${student}</b> and delete only the <b>release slip/log</b>. Assign history & slips are kept.</p>` +
+                       `<div style="text-align:left;display:inline-block;background:#f8fafc;padding:10px 14px;border-radius:8px;font-size:13px;line-height:1.5">` +
+                       `<b>Student:</b> ${student}<br><b>Seat:</b> ${seat}<br><b>Hall:</b> ${hall}<br>` +
+                       (releaseSlipSerials ? `<b>Release slips:</b> ${releaseSlipSerials}` : `<b>Release slips:</b> none`) +
+                       `</div>`;
+            }
+            return `<p style="margin-bottom:8px">Approve will <b>permanently delete</b> the assignment and its associated slips. This cannot be undone.</p>` +
+                   `<div style="text-align:left;display:inline-block;background:#f8fafc;padding:10px 14px;border-radius:8px;font-size:13px;line-height:1.5">` +
+                   `<b>Student:</b> ${student}<br><b>Seat:</b> ${seat}<br><b>Hall:</b> ${hall}<br>` +
+                   (slipCount ? `<b>Slips (${slipCount}):</b> ${slipSerials}` : `<b>Slips:</b> none`) +
+                   `</div>`;
+        } else {
+            return `<p>Reject will <b>unlock</b> the assignment and dismiss the request.</p>` +
+                   `<div style="text-align:left;display:inline-block;background:#f8fafc;padding:10px 14px;border-radius:8px;font-size:13px">` +
+                   `<b>Student:</b> ${student} &mdash; ${seat}</div>`;
+        }
+    }
+
+    function askConfirm(type) {
+        const isApprove = type === 'approve';
+        if (window.Swal) {
+            return Swal.fire({
+                title: isApprove ? 'Approve & Delete?' : 'Reject & Unlock?',
+                html: detailHtml(type),
+                icon: isApprove ? 'warning' : 'question',
+                showCancelButton: true,
+                confirmButtonColor: isApprove ? '#059669' : '#64748b',
+                cancelButtonColor: '#e2e8f0',
+                confirmButtonText: isApprove ? 'Yes, approve & delete' : 'Yes, reject',
+                cancelButtonText: 'Cancel',
+                focusCancel: true,
+                customClass: { cancelButton: 'swal-cancel-muted' }
+            }).then(r => r.isConfirmed);
+        }
+        return Promise.resolve(window.confirm(isApprove
+            ? `Approve will DELETE assignment {{ obj.student_id|escapejs }} @ {{ obj.seat_label|escapejs }} + slips. Continue?`
+            : `Reject request for {{ obj.student_id|escapejs }} ?`));
+    }
+
+    async function handle(e, type) {
+        e.preventDefault();
+        if (await askConfirm(type)) {
+            e.target.submit();
+        }
+    }
+    approveForm.addEventListener('submit', e => handle(e, 'approve'));
+    rejectForm.addEventListener('submit', e => handle(e, 'reject'));
+})();
+</script>
+{% endif %}
+{% endblock %}

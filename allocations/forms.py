@@ -248,3 +248,18 @@ class ImportAllocationsForm(forms.Form):
         if file and not file.name.lower().endswith('.csv'):
             raise forms.ValidationError('Please upload a .csv file.')
         return file
+
+
+class ResolveRequestForm(forms.ModelForm):
+    class Meta:
+        from .models import ResolveRequest
+        model = ResolveRequest
+        fields = ('request_type', 'reason')
+        widgets = {
+            'request_type': forms.Select(attrs={'class': 'w-full px-4 py-3 rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-indigo-500'}),
+            'reason': forms.Textarea(attrs={'class': 'w-full px-4 py-3 rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-indigo-500', 'rows': 4, 'placeholder': 'Explain why this assign/release was mistaken...'}),
+        }
+        labels = {
+            'request_type': 'Mistake Type',
+            'reason': 'Reason / Details',
+        }
