@@ -11,6 +11,7 @@ class ManagerBlockForm(forms.ModelForm):
         widgets = {
             'hall': forms.Select(attrs={'class': WIDGET}),
             'name': forms.TextInput(attrs={'class': WIDGET}),
+            'color': forms.TextInput(attrs={'class': WIDGET + ' h-12 p-1 cursor-pointer', 'type': 'color'}),
         }
     def __init__(self, *args, user=None, **kwargs):
         super().__init__(*args, **kwargs)
@@ -28,6 +29,7 @@ class ManagerFloorForm(forms.ModelForm):
             'hall': forms.Select(attrs={'class': WIDGET}),
             'block': forms.Select(attrs={'class': WIDGET}),
             'name': forms.TextInput(attrs={'class': WIDGET}),
+            'color': forms.TextInput(attrs={'class': WIDGET + ' h-12 p-1 cursor-pointer', 'type': 'color'}),
         }
     def __init__(self, *args, user=None, **kwargs):
         super().__init__(*args, **kwargs)
@@ -55,6 +57,7 @@ class ManagerRoomForm(forms.ModelForm):
             'floor': forms.Select(attrs={'class': WIDGET}),
             'name': forms.TextInput(attrs={'class': WIDGET}),
             'capacity': forms.NumberInput(attrs={'class': WIDGET, 'min': 0}),
+            'color': forms.TextInput(attrs={'class': WIDGET + ' h-12 p-1 cursor-pointer', 'type': 'color'}),
         }
     def __init__(self, *args, user=None, **kwargs):
         super().__init__(*args, **kwargs)

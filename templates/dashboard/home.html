@@ -49,7 +49,7 @@
         </div>
     </div>
 </div>
-
+{% if request.user.is_app_admin %}
 <!-- Structure summary -->
 <div class="grid grid-cols-2 md:grid-cols-4 gap-5 mb-8">
     <div class="bg-gradient-to-br from-indigo-600 to-indigo-700 text-white rounded-xl shadow-md p-5">
@@ -69,14 +69,19 @@
         <p class="text-3xl font-extrabold mt-2">{{ total_rooms }}</p>
     </div>
 </div>
+{% endif %}
 
 <div class="grid grid-cols-1 xl:grid-cols-3 gap-8">
     <!-- Free seats per hall -->
     <div class="xl:col-span-2 bg-white rounded-xl shadow-sm border border-slate-200 p-6">
+        
         <div class="flex items-center justify-between mb-6">
-            <h3 class="font-bold text-slate-800">Vacant Seat Statistics by Hall</h3>
-            <span class="text-xs font-medium text-slate-500 bg-slate-100 px-3 py-1 rounded-full">{{ hall_stats|length }} halls</span>
+            {% if request.user.is_app_admin %}
+                <h3 class="font-bold text-slate-800">Vacant Seat Statistics by Hall</h3>
+                <span class="text-xs font-medium text-slate-500 bg-slate-100 px-3 py-1 rounded-full">{{ hall_stats|length }} halls</span>
+            {% endif %}
         </div>
+        
         <div class="space-y-5">
             {% for item in hall_stats %}
             <div>

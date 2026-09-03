@@ -29,6 +29,7 @@ class HallForm(forms.ModelForm):
         widgets = {
             'name': forms.TextInput(attrs={'class': WIDGET_CLASSES}),
             'code': forms.TextInput(attrs={'class': WIDGET_CLASSES}),
+            'color': forms.TextInput(attrs={'class': WIDGET_CLASSES + ' h-12 p-1 cursor-pointer', 'type': 'color'}),
             'description': forms.Textarea(attrs={'rows': 3, 'class': WIDGET_CLASSES}),
         }
 
@@ -40,6 +41,7 @@ class BlockForm(forms.ModelForm):
         widgets = {
             'hall': forms.Select(attrs={'class': WIDGET_CLASSES}),
             'name': forms.TextInput(attrs={'class': WIDGET_CLASSES}),
+            'color': forms.TextInput(attrs={'class': WIDGET_CLASSES + ' h-12 p-1 cursor-pointer', 'type': 'color'}),
         }
 
 
@@ -51,6 +53,7 @@ class FloorForm(forms.ModelForm):
             'hall': forms.Select(attrs={'class': WIDGET_CLASSES}),
             'block': forms.Select(attrs={'class': WIDGET_CLASSES}),
             'name': forms.TextInput(attrs={'class': WIDGET_CLASSES}),
+            'color': forms.TextInput(attrs={'class': WIDGET_CLASSES + ' h-12 p-1 cursor-pointer', 'type': 'color'}),
         }
 
     def __init__(self, *args, **kwargs):
@@ -77,6 +80,7 @@ class RoomForm(forms.ModelForm):
             'floor': forms.Select(attrs={'class': WIDGET_CLASSES}),
             'name': forms.TextInput(attrs={'class': WIDGET_CLASSES}),
             'capacity': forms.NumberInput(attrs={'class': WIDGET_CLASSES, 'min': 0}),
+            'color': forms.TextInput(attrs={'class': WIDGET_CLASSES + ' h-12 p-1 cursor-pointer', 'type': 'color'}),
         }
 
     def __init__(self, *args, **kwargs):

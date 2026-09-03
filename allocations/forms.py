@@ -26,7 +26,7 @@ class AssignForm(forms.Form):
         max_length=50,
         widget=forms.TextInput(attrs={
             'class': 'w-full px-4 py-3 rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-indigo-500',
-            'placeholder': 'e.g. 2101CSE001',
+            'placeholder': 'e.g. 2601011001 or 24101001',
         }),
     )
     hall = HallChoiceField(
@@ -99,7 +99,7 @@ class RevokeForm(forms.Form):
         max_length=50,
         widget=forms.TextInput(attrs={
             'class': 'w-full px-4 py-3 rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-red-500',
-            'placeholder': 'e.g. 2101CSE001',
+            'placeholder': 'e.g. 2601011001 or 24101001',
         }),
     )
     reason = forms.ModelChoiceField(
