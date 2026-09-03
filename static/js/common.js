@@ -53,7 +53,7 @@
     function createEyeButton(input) {
         var btn = document.createElement('button');
         btn.type = 'button';
-        btn.className = 'absolute top-1/2 right-0 -translate-y-1/2 text-slate-500 hover:text-slate-700 transition cursor-pointer';
+        btn.className = 'absolute top-1/2 right-0 px-3 -translate-y-1/2 text-slate-500 hover:text-slate-700 transition cursor-pointer';
         btn.setAttribute('tabindex', '-1');
         btn.setAttribute('aria-label', 'Show password');
         btn.innerHTML =
