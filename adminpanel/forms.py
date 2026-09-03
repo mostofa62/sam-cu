@@ -142,9 +142,9 @@ class SeatForm(forms.ModelForm):
 class HallManagerForm(forms.ModelForm):
     """Create/edit a hall manager. Leave the password blank on edit to keep it."""
     password1 = forms.CharField(label='Password', required=False,
-                                widget=forms.PasswordInput(attrs={'class': WIDGET_CLASSES}))
+                                widget=forms.PasswordInput(attrs={'class': WIDGET_CLASSES + ' pr-10'}))
     password2 = forms.CharField(label='Password confirmation', required=False,
-                                widget=forms.PasswordInput(attrs={'class': WIDGET_CLASSES}))
+                                widget=forms.PasswordInput(attrs={'class': WIDGET_CLASSES + ' pr-10'}))
 
     class Meta:
         model = User

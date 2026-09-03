@@ -52,14 +52,16 @@ class LoginForm(AuthenticationForm):
             'class': 'w-full px-4 py-3 rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-indigo-500',
             'placeholder': 'Enter email or phone',
             'autofocus': True,
+            'maxlength': 40,
         }),
     )
     password = forms.CharField(
         label='Password',
         strip=False,
         widget=forms.PasswordInput(attrs={
-            'class': 'w-full px-4 py-3 rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-indigo-500',
+            'class': 'w-full px-4 py-3 pr-10 rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-indigo-500',
             'placeholder': 'Enter password',
+            'maxlength': 29,
         }),
     )
 
