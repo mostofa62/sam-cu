@@ -54,7 +54,7 @@
 <div class="sheet mx-auto my-3 bg-white shadow-lg print:shadow-none print:my-0 overflow-hidden flex flex-col">
     <div class="sheet-inner flex flex-col md:flex-row print:flex-row flex-1">
         {% for copy in "12" %}
-        <div class="copy flex-1 p-3 {% if forloop.first %}md:border-r print:border-r border-slate-400 border-dashed{% endif %} relative">
+        <div class="copy flex-1 {% if forloop.first %}md:border-r print:border-r border-slate-400 border-dashed{% endif %} relative" style="{% if forloop.first %}padding: 8px 32px 8px 8px;{% else %}padding: 8px 8px 8px 32px;{% endif %}">
 
 
             <!-- Header -->
@@ -135,19 +135,17 @@
 
             <!-- Signatures - pinned 10mm from bottom, borders baseline-aligned -->
             <div class="signatures flex justify-between items-end pt-3 mt-6">
-                <div class="text-center flex flex-col items-center">
+                <div class="text-center flex flex-col items-center" {% if not forloop.first %}style="margin-left: 23px;"{% endif %}>
                     <div class="h-8 flex flex-col items-center justify-end pb-1 w-full"></div>
                     <div class="border-t border-slate-800 w-[125px] mx-auto pt-1 text-[8px] font-semibold leading-none">Student Signature</div>
                     <div class="text-[7px] text-slate-500 leading-none py-1">{{ slip.event_date|date:"d/m/Y" }}</div>
-                    <!-- <div class="text-[6px] text-transparent font-mono leading-none select-none" aria-hidden="true">Auto · {{ now|date:"d M Y h:i A" }}</div> -->
                 </div>
-                <div class="text-center flex flex-col items-center">
+                <div class="text-center flex flex-col items-center" {% if forloop.first %}style="margin-right: 23px;"{% endif %}>
                     <div class="h-8 flex flex-col items-center justify-end pb-1 w-full">
                         <span class="text-[10px] italic font-semibold text-slate-800 leading-none">{# slip.signature_name #}</span>
                     </div>
                     <div class="border-t border-slate-800 w-[140px] mx-auto pt-1 text-[8px] font-bold leading-none">{# slip.signature_title | default:'Authorized' #} {{'Authorized Signature'}}</div>
                     <div class="text-[7px] text-slate-500 leading-none py-1">{{ slip.hall_name_snapshot }}</div>
-                    <!-- <div class="text-[6px] text-slate-400 font-mono leading-none">Auto · {{ slip.issued_at|date:"d/m/Y h:i A" }} · {{ slip.event_date|date:"d/m/Y h:i A" }}</div> -->
                 </div>
             </div>
 
